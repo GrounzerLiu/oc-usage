@@ -494,8 +494,10 @@ class _OcUsageAppState extends State<OcUsageApp>
       fontFamily: 'Microsoft YaHei UI',
       scaffoldBackgroundColor: dark ? AppColors.darkBg : AppColors.lightBg,
       appBarTheme: AppBarTheme(
-        backgroundColor: dark ? AppColors.darkBg : AppColors.lightBg,
-        foregroundColor: dark ? AppColors.darkText : AppColors.lightText,
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.onSurface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
       ),
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(

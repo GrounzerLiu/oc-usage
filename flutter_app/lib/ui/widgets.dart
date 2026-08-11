@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../theme.dart';
 
-/// 圆角卡片。
+/// Material 3 卡片（标准 Card 组件 + M3 语义色）。
 class CardBox extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -21,23 +21,15 @@ class CardBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: color ?? t.colorScheme.surface,
+    return Card(
+      elevation: 1,
+      margin: EdgeInsets.zero,
+      color: color ?? t.colorScheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: t.colorScheme.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: t.brightness == Brightness.dark
-                ? Colors.black.withValues(alpha: 0.25)
-                : const Color(0xFF2A3A6E).withValues(alpha: 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        side: BorderSide(color: t.colorScheme.outlineVariant),
       ),
-      padding: padding,
-      child: child,
+      child: Padding(padding: padding, child: child),
     );
   }
 }

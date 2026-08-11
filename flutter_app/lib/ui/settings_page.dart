@@ -82,7 +82,7 @@ class _SettingsPageState extends State<SettingsPage> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               child: Row(
                 children: [
-                  _Switch(
+                  Switch(
                     value: _autostart,
                     onChanged: (v) {
                       setState(() => _autostart = v);
@@ -164,13 +164,14 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _groupTitle(BuildContext context, String text) {
-    return Text(
-      text,
-      style: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 1,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
+    final t = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 4),
+      child: Text(
+        text,
+        style: t.textTheme.titleSmall?.copyWith(
+          color: t.colorScheme.onSurfaceVariant,
+        ),
       ),
     );
   }
