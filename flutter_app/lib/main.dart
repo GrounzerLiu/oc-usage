@@ -40,7 +40,7 @@ void main() async {
   final workHeight = _workAreaHeight();
   const size = Size(780, 940);
   windowManager.setMinimumSize(size);
-  windowManager.setSize(Size(780, workHeight - 60));
+  windowManager.setSize(Size(780, (workHeight - 60) * 0.82));
   windowManager.center();
   await windowManager.setPreventClose(true);
   await windowManager.setTitle('OpenCode 用量');
