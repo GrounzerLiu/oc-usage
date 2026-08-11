@@ -2,6 +2,7 @@
 library;
 
 import 'dart:async';
+import 'dart:ffi';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -33,12 +34,28 @@ void main() async {
     return true;
   };
   await windowManager.ensureInitialized();
+  // 窗口：宽度 780，高度铺满工作区，居中显示
+  final workHeight = _workAreaHeight();
   const size = Size(780, 940);
   windowManager.setMinimumSize(size);
-  windowManager.setSize(size);
+  windowManager.setSize(Size(780, workHeight - 60));
+  windowManager.center();
   await windowManager.setPreventClose(true);
   await windowManager.setTitle('OpenCode 用量');
   runApp(const OcUsageApp());
+}
+
+/// 屏幕工作区高度（Win32 GetSystemMetrics SM_CYWORKAREA=61）。
+int _workAreaHeight() {
+  try {
+    final user32 = DynamicLibrary.open('user32.dll');
+    final getSystemMetrics = user32.lookupFunction<
+        Int32 Function(Int32), int Function(int)>('GetSystemMetrics');
+    final h = getSystemMetrics(61);
+    return h > 400 ? h : 940;
+  } catch (_) {
+    return 940;
+  }
 }
 
 class OcUsageApp extends StatefulWidget {
