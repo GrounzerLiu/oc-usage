@@ -194,7 +194,7 @@ class LimitCard extends StatelessWidget {
           Text(
             resetText == '—' ? '—' : '剩余 ${(100 - percent).round()}% · $resetText后重置',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: t.colorScheme.outline),
+            style: TextStyle(fontSize: 11, color: t.colorScheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -246,7 +246,7 @@ class StatCard extends StatelessWidget {
           ),
           Text(
             sub,
-            style: TextStyle(fontSize: 11, color: t.colorScheme.outline),
+            style: TextStyle(fontSize: 11, color: t.colorScheme.onSurfaceVariant),
           ),
         ],
       ),

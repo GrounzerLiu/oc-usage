@@ -11,8 +11,8 @@ class AppColors {
   static const lightCardAlt = Color(0xFFF1F5F9); // slate-100
   static const lightBorder = Color(0xFFE2E8F0); // slate-200
   static const lightText = Color(0xFF0F172A); // slate-900
-  static const lightSub = Color(0xFF64748B); // slate-500
-  static const lightFaint = Color(0xFF94A3B8); // slate-400
+  static const lightSub = Color(0xFF55637A); // 深 slate（sub 文字，保证对比度）
+  static const lightFaint = Color(0xFF64748B); // slate-500（弱文字）
   static const lightBarBg = Color(0xFFE2E8F0);
   static const lightAccent = Color(0xFF2563EB); // blue-600
   static const lightAccentEnd = Color(0xFF7C3AED); // violet-600
@@ -23,8 +23,8 @@ class AppColors {
   static const darkCardAlt = Color(0xFF263348); // slate-700/800 之间
   static const darkBorder = Color(0xFF334155); // slate-700
   static const darkText = Color(0xFFF1F5F9); // slate-100
-  static const darkSub = Color(0xFF94A3B8); // slate-400
-  static const darkFaint = Color(0xFF64748B); // slate-500
+  static const darkSub = Color(0xFFA3B0C6); // 提亮 sub 文字
+  static const darkFaint = Color(0xFF8B97AD); // 提亮弱文字
   static const darkBarBg = Color(0xFF334155);
   static const darkAccent = Color(0xFF3B82F6); // blue-500
   static const darkAccentEnd = Color(0xFF8B5CF6); // violet-500

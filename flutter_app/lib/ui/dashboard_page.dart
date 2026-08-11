@@ -405,7 +405,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 '\$${v.toStringAsFixed(1)}',
                 style: TextStyle(
                     fontSize: 10,
-                    color: Theme.of(context).colorScheme.outline),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ),
           ),
@@ -426,7 +426,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     '${days[i]}日',
                     style: TextStyle(
                         fontSize: 10,
-                        color: Theme.of(context).colorScheme.outline),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                 );
               },
