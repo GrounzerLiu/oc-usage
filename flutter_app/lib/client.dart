@@ -152,7 +152,10 @@ class OpenCodeClient {
 
     UsageWindow? window(String label, String key) {
       final j = sub is Map<String, dynamic> ? sub[key] : null;
-      if (j is Map<String, dynamic>) return UsageWindow.fromJson(j, label);
+      if (j is Map<String, dynamic>) {
+        final w = UsageWindow.fromJson(j);
+        return UsageWindow(label: label, usagePercent: w.usagePercent, resetInSec: w.resetInSec);
+      }
       return null;
     }
 

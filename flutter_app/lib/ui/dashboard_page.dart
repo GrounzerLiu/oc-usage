@@ -242,17 +242,17 @@ class _DashboardPageState extends State<DashboardPage> {
     final cards = <Widget>[
       LimitCard(
         label: '滚动用量',
-        percent: go?.rolling?.usagePercent ?? 0,
+        percent: go?.rolling?.usagePercent,
         resetText: go?.rolling?.resetText() ?? '—',
       ),
       LimitCard(
         label: '每周用量',
-        percent: go?.weekly?.usagePercent ?? 0,
+        percent: go?.weekly?.usagePercent,
         resetText: go?.weekly?.resetText() ?? '—',
       ),
       LimitCard(
         label: '每月用量',
-        percent: go?.monthly?.usagePercent ?? 0,
+        percent: go?.monthly?.usagePercent,
         resetText: go?.monthly?.resetText() ?? '—',
       ),
     ];

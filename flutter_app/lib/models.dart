@@ -26,12 +26,18 @@ class UsageWindow {
     return '$minutes 分钟';
   }
 
-  factory UsageWindow.fromJson(Map<String, dynamic> j, String label) =>
+  factory UsageWindow.fromJson(Map<String, dynamic> j) =>
       UsageWindow(
-        label: label,
+        label: '${j['label'] ?? ''}',
         usagePercent: (j['usagePercent'] as num?)?.toDouble() ?? 0,
         resetInSec: (j['resetInSec'] as num?)?.toInt() ?? 0,
       );
+
+  Map<String, dynamic> toJson() => {
+        'label': label,
+        'usagePercent': usagePercent,
+        'resetInSec': resetInSec,
+      };
 }
 
 class GoData {
@@ -64,6 +70,29 @@ class GoData {
       lines.add('未订阅 Go');
     }
     return lines;
+  }
+
+  Map<String, dynamic> toJson() => {
+        'subscribed': subscribed,
+        'rolling': rolling?.toJson(),
+        'weekly': weekly?.toJson(),
+        'monthly': monthly?.toJson(),
+        'balance': balance,
+      };
+
+  factory GoData.fromJson(Map<String, dynamic> j) {
+    UsageWindow? w(String key) {
+      final v = j[key];
+      return v is Map<String, dynamic> ? UsageWindow.fromJson(v) : null;
+    }
+
+    return GoData(
+      subscribed: j['subscribed'] == true,
+      rolling: w('rolling'),
+      weekly: w('weekly'),
+      monthly: w('monthly'),
+      balance: (j['balance'] as num?)?.toDouble(),
+    );
   }
 }
 

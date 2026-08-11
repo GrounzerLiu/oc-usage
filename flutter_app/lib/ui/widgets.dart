@@ -78,9 +78,9 @@ class SectionTitle extends StatelessWidget {
   }
 }
 
-/// 环形进度（圆角弧 + 居中百分比）。
+/// 环形进度（圆角弧 + 居中百分比）。percent 为 null 时显示 "—" 占位。
 class RingProgress extends StatelessWidget {
-  final double percent; // 0-100
+  final double? percent; // null = 数据未就绪
   final Color color;
   final double size;
   final double strokeWidth;
@@ -95,23 +95,26 @@ class RingProgress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pct = percent;
     return SizedBox(
       width: size,
       height: size,
       child: CustomPaint(
         painter: _RingPainter(
-          percent: percent,
+          percent: pct,
           color: color,
           trackColor:
               Theme.of(context).colorScheme.surfaceContainerHighest,
         ),
         child: Center(
           child: Text(
-            '${percent.round()}%',
+            pct == null ? '—' : '${pct.round()}%',
             style: TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.bold,
-              color: color,
+              color: pct == null
+                  ? Theme.of(context).colorScheme.outline
+                  : color,
             ),
           ),
         ),
@@ -121,7 +124,7 @@ class RingProgress extends StatelessWidget {
 }
 
 class _RingPainter extends CustomPainter {
-  final double percent;
+  final double? percent;
   final Color color;
   final Color trackColor;
 
@@ -141,12 +144,14 @@ class _RingPainter extends CustomPainter {
     final rect = Rect.fromLTWH(4.5, 4.5, size.width - 9, size.height - 9);
     canvas.drawOval(rect, track);
 
+    final pct = percent;
+    if (pct == null) return;
     final arc = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 9
       ..strokeCap = StrokeCap.round
       ..color = color;
-    canvas.drawArc(rect, -90 * (pi180), -360 * (percent.clamp(0, 100) / 100) * (pi180), false, arc);
+    canvas.drawArc(rect, -90 * (pi180), -360 * (pct.clamp(0, 100) / 100) * (pi180), false, arc);
   }
 
   @override
@@ -160,7 +165,7 @@ double get pi180 => _pi / 180;
 /// 限额卡片：名称 + 环形进度 + 重置倒计时。
 class LimitCard extends StatelessWidget {
   final String label;
-  final double percent;
+  final double? percent; // null = 数据未就绪
   final String resetText;
 
   const LimitCard({
@@ -173,7 +178,7 @@ class LimitCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context);
-    final color = AppColors.accentFor(percent);
+    final color = AppColors.accentFor(percent ?? 0);
     return CardBox(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Column(
@@ -192,7 +197,9 @@ class LimitCard extends StatelessWidget {
           RingProgress(percent: percent, color: color),
           const SizedBox(height: 6),
           Text(
-            resetText == '—' ? '—' : '剩余 ${(100 - percent).round()}% · $resetText后重置',
+            percent == null || resetText == '—'
+                ? '—'
+                : '剩余 ${(100 - percent!).round()}% · $resetText后重置',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 11, color: t.colorScheme.onSurfaceVariant),
           ),

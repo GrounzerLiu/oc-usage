@@ -129,7 +129,15 @@ class _OcUsageAppState extends State<OcUsageApp>
       // 捕获最新 cookie 并保存（DPAPI，与 Python 版同路径）—— 登录态自动续期
       _persistCookie(wid);
       setState(() => _loggedIn = true);
-      // 快照立即展示（DB 缓存），后台并行刷新/历史/统计，互不阻塞
+      // 快照立即展示（DB 缓存：限额 + 统计），后台并行刷新/历史/统计
+      final cachedGo = _db.getGoCache();
+      if (cachedGo != null) {
+        final d = _data.value;
+        d.go = cachedGo;
+        d.status = '上次刷新 ${_nowText()}';
+        _data.value = DashboardData.from(d);
+        _updateTrayTooltip(cachedGo);
+      }
       _applyStats();
       _refresh();
       _loadHistory();
@@ -190,6 +198,7 @@ class _OcUsageAppState extends State<OcUsageApp>
       if (!d.loading) d.status = '上次刷新 ${_nowText()}';
       _data.value = DashboardData.from(d);
       _updateTrayTooltip(go);
+      _db.putGoCache(go);
       AppLog.i('刷新完成（${DateTime.now().difference(t0).inMilliseconds}ms）'
           ' subscribed=${go.subscribed} '
           '滚动=${go.rolling?.usagePercent.round()}% '
@@ -229,6 +238,10 @@ class _OcUsageAppState extends State<OcUsageApp>
       _applyStats();
       AppLog.i('统计同步完成（${DateTime.now().difference(t0).inMilliseconds}ms）'
           ' 新增 $added 条，库内 ${_db.recordCount()} 条');
+      // 状态栏显示同步结果（与 Python 版一致）
+      final d = _data.value;
+      d.status = '缓存已同步 · 新增 $added 条 · ${_nowText()}';
+      _data.value = DashboardData.from(d);
     } catch (e, st) {
       AppLog.e('统计同步失败', e, st);
     } finally {
@@ -327,8 +340,15 @@ class _OcUsageAppState extends State<OcUsageApp>
 
   @override
   void onTrayIconMouseDown() {
+    _openWindow();
+  }
+
+  /// 打开统计窗口：立即显示缓存快照，后台刷新限额 + 增量同步统计。
+  void _openWindow() {
     windowManager.show();
     windowManager.focus();
+    _refresh();
+    _syncStats();
   }
 
   @override
@@ -340,8 +360,7 @@ class _OcUsageAppState extends State<OcUsageApp>
   void onTrayMenuItemClick(MenuItem menuItem) {
     switch (menuItem.key) {
       case 'open':
-        windowManager.show();
-        windowManager.focus();
+        _openWindow();
       case 'refresh':
         _refresh();
         _syncStats();

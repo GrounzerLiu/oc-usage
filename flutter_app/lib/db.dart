@@ -236,6 +236,27 @@ class UsageCache {
 
   // ── 统计 ──
 
+  // ── Go 限额缓存（启动快照，刷新成功时更新） ──
+
+  void putGoCache(GoData go) {
+    db.execute(
+      'INSERT OR REPLACE INTO meta(k,v) VALUES(?,?)',
+      ['go_cache', jsonEncode(go.toJson())],
+    );
+  }
+
+  GoData? getGoCache() {
+    try {
+      final rows = db.select("SELECT v FROM meta WHERE k='go_cache'");
+      if (rows.isEmpty) return null;
+      final data = jsonDecode('${rows.first['v']}');
+      if (data is! Map<String, dynamic>) return null;
+      return GoData.fromJson(data);
+    } catch (_) {
+      return null;
+    }
+  }
+
   int recordCount() {
     return db.select('SELECT COUNT(*) c FROM records').first['c'] as int;
   }
