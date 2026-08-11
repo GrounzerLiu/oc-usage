@@ -345,6 +345,16 @@ void WebviewWinFloatingPlugin::HandleMethodCall(
         utf8ToUtf16(path).c_str());
     result->Success(flutter::EncodableValue(SUCCEEDED(hr)));
 
+  } else if (method_call.method_name().compare("getCookie") == 0) {
+    auto domain = std::get<std::string>(arguments[flutter::EncodableValue("domain")]);
+    auto name = std::get<std::string>(arguments[flutter::EncodableValue("name")]);
+    auto sharedResult = std::shared_ptr<flutter::MethodResult<flutter::EncodableValue>>(
+        result.release());
+    webview->getCookieAsync(utf8ToUtf16(domain).c_str(), utf8ToUtf16(name).c_str(),
+        [sharedResult](std::string value) {
+            sharedResult->Success(flutter::EncodableValue(value));
+        });
+
   } else if (method_call.method_name().compare("requestFocus") == 0) {
     webview->requestFocus(true);
     result->Success();

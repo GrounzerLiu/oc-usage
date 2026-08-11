@@ -79,6 +79,7 @@ public:
     HRESULT clearCache();
     HRESULT clearCookies();
     HRESULT setCookie(LPCWSTR domain, LPCWSTR name, LPCWSTR value, LPCWSTR path);
+    void getCookieAsync(LPCWSTR domain, LPCWSTR name, std::function<void(std::string)> callback);
 
 	HRESULT suspend();
 	HRESULT resume();
@@ -721,6 +722,53 @@ HRESULT MyWebViewImpl::setCookie(LPCWSTR domain, LPCWSTR name, LPCWSTR value, LP
     if (FAILED(hr)) return hr;
 
     return cookieManager->AddOrUpdateCookie(cookie.get());
+}
+
+void MyWebViewImpl::getCookieAsync(LPCWSTR domain, LPCWSTR name, std::function<void(std::string)> callback)
+{
+    wil::com_ptr<ICoreWebView2CookieManager> cookieManager;
+    auto webview2_2 = m_pWebview.try_query<ICoreWebView2_2>();
+    if (webview2_2 == NULL) { callback(""); return; }
+
+    webview2_2->get_CookieManager(&cookieManager);
+    if (cookieManager == NULL) { callback(""); return; }
+
+    // Manual COM handler to avoid WRL Callback copy-constructibility limits
+    class CookieHandler : public Microsoft::WRL::RuntimeClass<
+        Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>,
+        ICoreWebView2GetCookiesCompletedHandler> {
+    public:
+        CookieHandler(std::shared_ptr<std::function<void(std::string)>> cb) : m_cb(cb) {}
+        HRESULT STDMETHODCALLTYPE Invoke(HRESULT, ICoreWebView2CookieList* list) override {
+            std::string result;
+            if (list != NULL) {
+                UINT count = 0;
+                list->get_Count(&count);
+                for (UINT i = 0; i < count; i++) {
+                    wil::com_ptr<ICoreWebView2Cookie> cookie;
+                    if (FAILED(list->GetValueAtIndex(i, &cookie))) continue;
+                    wil::unique_cotaskmem_string cookieName;
+                    if (FAILED(cookie->get_Name(&cookieName))) continue;
+                    if (wcscmp(cookieName.get(), m_name.c_str()) != 0) continue;
+                    wil::unique_cotaskmem_string cookieValue;
+                    if (SUCCEEDED(cookie->get_Value(&cookieValue))) {
+                        result = utf8_encode(cookieValue.get());
+                    }
+                    break;
+                }
+            }
+            (*m_cb)(result);
+            return S_OK;
+        }
+        std::shared_ptr<std::function<void(std::string)>> m_cb;
+        std::wstring m_name;
+    };
+
+    auto cb = std::make_shared<std::function<void(std::string)>>(callback);
+    auto handler = Microsoft::WRL::Make<CookieHandler>(cb);
+    handler->m_name = name;
+    auto hr = cookieManager->GetCookies(domain, handler.Get());
+    if (FAILED(hr)) callback("");
 }
 
 HRESULT MyWebViewImpl::suspend()

@@ -73,6 +73,7 @@ public:
 
 	virtual HRESULT clearCache() = 0;
 	virtual HRESULT setCookie(LPCWSTR domain, LPCWSTR name, LPCWSTR value, LPCWSTR path) = 0;
+	virtual void getCookieAsync(LPCWSTR domain, LPCWSTR name, std::function<void(std::string)> callback) = 0;
 	virtual HRESULT clearCookies() = 0;
 
 	virtual HRESULT suspend() = 0;

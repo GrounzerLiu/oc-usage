@@ -9,6 +9,7 @@ import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'client.dart';
+import 'cookie_store.dart';
 import 'db.dart';
 import 'logger.dart';
 import 'models.dart';
@@ -116,12 +117,28 @@ class _OcUsageAppState extends State<OcUsageApp>
     _workspaceId = wid;
     _client = OpenCodeClient(_session);
     AppLog.i('登录成功 workspace=$wid');
+    // 捕获最新 cookie 并保存（DPAPI，与 Python 版同路径）—— 登录态自动续期
+    _persistCookie(wid);
     setState(() => _loggedIn = true);
     _setLoading(true, '登录成功，正在获取用量数据…');
     _refresh();
     _loadHistory();
     _timer?.cancel();
     _timer = Timer.periodic(_refreshInterval, (_) => _refresh());
+  }
+
+  Future<void> _persistCookie(String wid) async {
+    try {
+      final cookie = await _session.getCookie('https://opencode.ai', 'auth');
+      if (cookie != null && cookie.isNotEmpty) {
+        await CookieStore.save(cookie, wid);
+        AppLog.i('cookie 已保存（${cookie.length} 字符）');
+      } else {
+        AppLog.e('读取 cookie 为空');
+      }
+    } catch (e) {
+      AppLog.e('保存 cookie 失败', e);
+    }
   }
 
   int _loadingCount = 0;

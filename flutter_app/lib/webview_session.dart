@@ -63,6 +63,21 @@ class WebSession {
     AppLog.i('WebView 导航委托已注册');
   }
 
+  /// 通过 WebView2 原生 CookieManager 读取 cookie 值（含 httpOnly）。
+  Future<String?> getCookie(String domain, String name) async {
+    try {
+      final value = await _cookieChannel.invokeMethod<String>('getCookie', {
+        'webviewId': 1,
+        'domain': domain,
+        'name': name,
+      });
+      return (value == null || value.isEmpty) ? null : value;
+    } catch (e) {
+      AppLog.e('读取 cookie 失败', e);
+      return null;
+    }
+  }
+
   /// 通过 WebView2 原生 CookieManager 注入 cookie（支持 httpOnly）。
   Future<bool> setCookie(
     String domain,
