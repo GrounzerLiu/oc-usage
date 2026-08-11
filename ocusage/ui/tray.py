@@ -17,6 +17,7 @@ class TrayIcon(QObject):
     open_requested = Signal()
     refresh_requested = Signal()
     relogin_requested = Signal()
+    settings_requested = Signal()
     quit_requested = Signal()
 
     def __init__(self, parent: Optional[QObject] = None):
@@ -28,10 +29,13 @@ class TrayIcon(QObject):
         menu = QMenu()
         self._action_open = QAction("打开统计", menu)
         self._action_refresh = QAction("立即刷新", menu)
+        self._action_settings = QAction("设置…", menu)
         self._action_relogin = QAction("重新登录…", menu)
         self._action_quit = QAction("退出", menu)
         menu.addAction(self._action_open)
         menu.addAction(self._action_refresh)
+        menu.addSeparator()
+        menu.addAction(self._action_settings)
         menu.addSeparator()
         menu.addAction(self._action_relogin)
         menu.addAction(self._action_quit)
@@ -40,6 +44,7 @@ class TrayIcon(QObject):
         self._tray.activated.connect(self._on_activated)
         self._action_open.triggered.connect(self.open_requested.emit)
         self._action_refresh.triggered.connect(self.refresh_requested.emit)
+        self._action_settings.triggered.connect(self.settings_requested.emit)
         self._action_relogin.triggered.connect(self.relogin_requested.emit)
         self._action_quit.triggered.connect(self.quit_requested.emit)
 

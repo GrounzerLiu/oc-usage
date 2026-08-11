@@ -12,7 +12,9 @@ from ocusage import client
 from ocusage.auth import CookieStore, LoginWindow
 from ocusage.dbcache import UsageCache
 from ocusage.models import GoData, HistoryEntry, UsageData
+from ocusage.settings import Settings, set_autostart
 from ocusage.ui.dashboard import DashboardWindow
+from ocusage.ui.settings_window import SettingsWindow
 from ocusage.ui.tray import TrayIcon
 
 REFRESH_INTERVAL_MS = 5 * 60 * 1000  # 5 分钟自动刷新
@@ -39,11 +41,15 @@ class AppController(QObject):
         self.tray = TrayIcon(self)
         self.window = DashboardWindow()
         self._db = UsageCache()
+        self._settings = Settings()
+        self._settings_window: Optional[SettingsWindow] = None
+        self.window.set_theme_mode(self._settings.theme)
 
         # 信号路由
         self.tray.open_requested.connect(self._show_window)
         self.tray.refresh_requested.connect(self.refresh)
         self.tray.relogin_requested.connect(self._start_login)
+        self.tray.settings_requested.connect(self._show_settings)
         self.tray.quit_requested.connect(app.quit)
         self.window.refresh_requested.connect(self.refresh)
         self.window.all_stats_requested.connect(self.fetch_all)
@@ -256,6 +262,33 @@ class AppController(QObject):
         self.tray.set_error(message)
         if message.startswith("登录已过期"):
             self._start_login()
+
+    # ── 设置 ──
+
+    def _show_settings(self) -> None:
+        if self._settings_window is None:
+            self._settings_window = SettingsWindow(self._settings)
+            self._settings_window.theme_changed.connect(self._on_theme_changed)
+            self._settings_window.autostart_changed.connect(self._on_autostart_changed)
+        self._settings_window.set_theme_mode(self._settings.theme)
+        self._settings_window.show()
+        self._settings_window.raise_()
+        self._settings_window.activateWindow()
+
+    def _on_theme_changed(self, mode: str) -> None:
+        self._settings.theme = mode
+        self._settings.save()
+        self.window.set_theme_mode(mode)
+        if self._settings_window is not None:
+            self._settings_window.set_theme_mode(mode)
+
+    def _on_autostart_changed(self, enabled: bool) -> None:
+        self._settings.autostart = enabled
+        self._settings.save()
+        try:
+            set_autostart(enabled)
+        except Exception as e:  # noqa: BLE001
+            self.tray.set_error(f"开机自启设置失败：{e}")
 
     # ── 窗口 ──
 

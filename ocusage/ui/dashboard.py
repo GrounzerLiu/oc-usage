@@ -754,14 +754,28 @@ class DashboardWindow(QWidget):
             stats_row.addWidget(card, 1)
         root.addLayout(stats_row)
 
-        # ── 跟随系统主题 ──
-        app = QApplication.instance()
-        if app is not None:
-            app.styleHints().colorSchemeChanged.connect(self._on_scheme_changed)
-            scheme = app.styleHints().colorScheme()
-            self.apply_theme(scheme == Qt.ColorScheme.Dark)
+        # ── 主题（默认跟随系统，可由设置切换） ──
+        self._theme_mode = "system"
+        self._scheme_connected = False
+        self.set_theme_mode("system")
 
     # ── 主题 ──
+
+    def set_theme_mode(self, mode: str) -> None:
+        """主题模式：system 跟随系统，dark/light 固定。"""
+        self._theme_mode = mode
+        if mode == "system":
+            app = QApplication.instance()
+            if app is not None:
+                if not self._scheme_connected:
+                    self._scheme_connected = True
+                    app.styleHints().colorSchemeChanged.connect(
+                        self._on_scheme_changed
+                    )
+                scheme = app.styleHints().colorScheme()
+                self.apply_theme(scheme == Qt.ColorScheme.Dark)
+        else:
+            self.apply_theme(mode == "dark")
 
     def apply_theme(self, dark: bool) -> None:
         self._dark = dark
