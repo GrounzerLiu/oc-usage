@@ -580,6 +580,7 @@ class DashboardWindow(QWidget):
 
     refresh_requested = Signal()
     all_stats_requested = Signal()
+    settings_requested = Signal()
     month_changed = Signal(int, int)  # year, month（1-based）
 
     def __init__(self, parent: Optional[QWidget] = None):
@@ -633,6 +634,12 @@ class DashboardWindow(QWidget):
         self._all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._all_btn.clicked.connect(self.all_stats_requested.emit)
         header.addWidget(self._all_btn)
+
+        self._settings_btn = QPushButton("⚙ 设置")
+        self._settings_btn.setObjectName("ghostBtn")
+        self._settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._settings_btn.clicked.connect(self.settings_requested.emit)
+        header.addWidget(self._settings_btn)
 
         self._refresh_btn = QPushButton("刷新")
         self._refresh_btn.setObjectName("refreshBtn")

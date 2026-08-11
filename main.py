@@ -53,6 +53,7 @@ class AppController(QObject):
         self.tray.quit_requested.connect(app.quit)
         self.window.refresh_requested.connect(self.refresh)
         self.window.all_stats_requested.connect(self.fetch_all)
+        self.window.settings_requested.connect(self._show_settings)
         self.window.month_changed.connect(self.on_month_changed)
         self.go_loaded.connect(self._on_go_loaded)
         self.history_loaded.connect(self._on_history_loaded)
