@@ -2,7 +2,7 @@
 library;
 
 import 'dart:async';
-import 'dart:ffi' show DynamicLibrary, Int32, NativeFunction;
+import 'dart:ffi' hide Size;
 import 'dart:ui';
 
 import 'package:ffi/ffi.dart';
