@@ -36,7 +36,19 @@ class OpenCodeClient {
 
   /// 解析 /workspace/{id}/go 页面：Go 三层限额 + billing。
   Future<GoData> fetchGo(String workspaceId) async {
-    final finalUrl = await session.loadAndWait('$baseUrl/workspace/$workspaceId/go');
+    AppLog.i('fetchGo: 开始加载 /go 页面');
+    String? finalUrl;
+    try {
+      finalUrl = await session
+          .loadAndWait('$baseUrl/workspace/$workspaceId/go')
+          .timeout(
+            const Duration(seconds: 40),
+            onTimeout: () => session.lastUrl,
+          );
+    } catch (e) {
+      AppLog.e('fetchGo: loadAndWait 异常', e);
+    }
+    AppLog.i('fetchGo: 页面最终 URL = $finalUrl');
     if (finalUrl != null && finalUrl.contains('/auth/')) {
       throw ClientError('登录已过期，请重新登录');
     }
@@ -44,16 +56,19 @@ class OpenCodeClient {
       'lite.subscription.get',
       'billing.get',
     ]));
+    AppLog.i('fetchGo: evalJs 返回 ${raw?.length ?? -1} 字符');
     if (raw == null) throw ClientError('页面没有内联数据（可能未登录或页面结构变化）');
     final Map<String, dynamic> data;
     try {
       data = jsonDecode(raw) as Map<String, dynamic>;
-    } catch (_) {
+    } catch (e) {
+      AppLog.e('fetchGo: jsonDecode 失败: ${raw.substring(0, raw.length > 200 ? 200 : raw.length)}', e);
       throw ClientError('SSR 数据解析失败（前端可能已改版）');
     }
-
+    AppLog.i('fetchGo: 解析成功，keys=${data.keys.take(3).toList()}');
     final sub = _firstMatch(data, 'lite.subscription.get');
     final bill = _firstMatch(data, 'billing.get');
+    AppLog.i('fetchGo: sub=$sub bill=$bill');
 
     UsageWindow? window(String label, String key) {
       final j = sub is Map<String, dynamic> ? sub[key] : null;

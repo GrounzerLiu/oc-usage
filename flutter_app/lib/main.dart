@@ -2,6 +2,7 @@
 library;
 
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:tray_manager/tray_manager.dart';
@@ -22,6 +23,14 @@ const _refreshInterval = Duration(minutes: 5);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 全局错误捕获 → app.log（桌面应用无 console）
+  FlutterError.onError = (details) {
+    AppLog.e('Flutter 错误: ${details.exception}', details.exception, details.stack);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    AppLog.e('未捕获异常', error, stack);
+    return true;
+  };
   await windowManager.ensureInitialized();
   const size = Size(780, 940);
   windowManager.setMinimumSize(size);
@@ -52,6 +61,7 @@ class _OcUsageAppState extends State<OcUsageApp>
   bool _loggedIn = false;
   bool _busy = false;
   bool _busySync = false;
+  bool _sessionReady = false;
 
   @override
   void initState() {
@@ -72,6 +82,7 @@ class _OcUsageAppState extends State<OcUsageApp>
     final dataDir = await webviewDataDir();
     _session = WebSession(userDataFolder: dataDir);
     _session.onUrlChanged = _onWebUrl;
+    _sessionReady = true;
 
     trayManager.addListener(this);
     windowManager.addListener(this);
@@ -87,6 +98,7 @@ class _OcUsageAppState extends State<OcUsageApp>
   }
 
   void _onWebUrl(String url) {
+    if (!_sessionReady) return;
     AppLog.i('URL 变化: $url');
     final wid = _extractWorkspace(url);
     if (wid != null && !_loggedIn) {
@@ -139,7 +151,9 @@ class _OcUsageAppState extends State<OcUsageApp>
     AppLog.i('刷新开始');
     final t0 = DateTime.now();
     try {
+      AppLog.i('调用 fetchGo');
       final go = await client.fetchGo(wid);
+      AppLog.i('fetchGo 返回，开始更新 UI');
       final d = _data.value;
       d.go = go;
       if (!d.loading) d.status = '上次刷新 ${_nowText()}';
@@ -371,6 +385,7 @@ class _OcUsageAppState extends State<OcUsageApp>
               if (!_loggedIn) {
                 return LoginPage(
                   session: _session,
+                  onLoggedIn: _onLoggedIn,
                   onCancelled: () => windowManager.hide(),
                 );
               }

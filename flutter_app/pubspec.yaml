@@ -36,7 +36,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   tray_manager: ^0.5.3
   window_manager: ^0.5.2
-  webview_win_floating: ^3.0.3
+  webview_win_floating:
+    path: windows/plugins/webview_win_floating
   sqlite3: 2.4.0
   fl_chart: ^1.2.0
   ffi: ^2.2.0

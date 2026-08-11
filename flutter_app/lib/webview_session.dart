@@ -8,15 +8,21 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:webview_win_floating/webview_win_floating.dart';
 
 import 'logger.dart';
+
+/// WebView2 原生 CookieManager 注入（本地 fork 插件提供）。
+const _cookieChannel = MethodChannel('webview_win_floating');
 
 class WebSession {
   final WinWebViewController controller;
   final _loadCompleters = <Completer<String?>>[];
   String? _lastUrl;
   bool _initialized = false;
+
+  String? get lastUrl => _lastUrl;
 
   /// 任意导航发生（含登录跳转）时的回调。
   void Function(String url)? onUrlChanged;
@@ -57,6 +63,28 @@ class WebSession {
     AppLog.i('WebView 导航委托已注册');
   }
 
+  /// 通过 WebView2 原生 CookieManager 注入 cookie（支持 httpOnly）。
+  Future<bool> setCookie(
+    String domain,
+    String name,
+    String value, {
+    String path = '/',
+  }) async {
+    try {
+      final ok = await _cookieChannel.invokeMethod<bool>('setCookie', {
+        'webviewId': 1,
+        'domain': domain,
+        'name': name,
+        'value': value,
+        'path': path,
+      });
+      return ok == true;
+    } catch (e) {
+      AppLog.e('注入 cookie 失败', e);
+      return false;
+    }
+  }
+
   /// 加载 URL 并等待页面加载完成（返回最终 URL，可检测登录跳转）。
   Future<String?> loadAndWait(
     String url, {
@@ -79,13 +107,18 @@ class WebSession {
     );
   }
 
-  /// 同步 JS 求值，返回结果字符串。
+  /// 同步 JS 求值，返回结果字符串（带超时，防止 WebView2 挂起）。
   ///
   /// WebView2 会把 JS 字符串返回值再 JSON 编码一层（"abc" → "\"abc\""），
   /// 这里统一剥掉外层的 JSON 引号，返回真实字符串。
-  Future<String?> evalJs(String js) async {
+  Future<String?> evalJs(String js, {Duration timeout = const Duration(seconds: 5)}) async {
     try {
-      final r = await controller.runJavaScriptReturningResult(js);
+      final r = await controller
+          .runJavaScriptReturningResult(js)
+          .timeout(timeout, onTimeout: () {
+        AppLog.e('evalJs 超时: ${js.substring(0, js.length > 60 ? 60 : js.length)}');
+        return 'null';
+      });
       if (r is String && r.startsWith('"')) {
         try {
           final decoded = jsonDecode(r);
