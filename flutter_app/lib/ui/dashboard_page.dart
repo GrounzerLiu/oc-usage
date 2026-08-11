@@ -16,6 +16,7 @@ class DashboardData {
   MonthStats? stats;
   List<(String, int)> modelCosts = [];
   String status = '';
+  bool loading = false;
   int viewYear = 0;
   int viewMonth = 0; // 1-based
 
@@ -126,18 +127,19 @@ class _DashboardPageState extends State<DashboardPage> {
             ],
           ),
         ),
-        _statusChip(context, d.status),
+        _statusChip(context, d),
         const SizedBox(width: 10),
         _ghostBtn(context, '全量统计', widget.onFullStats),
         const SizedBox(width: 8),
         _ghostBtn(context, '⚙ 设置', widget.onSettings),
         const SizedBox(width: 8),
-        _primaryBtn(context, '刷新', widget.onRefresh),
+        _primaryBtn(context, d.loading ? '刷新中…' : '刷新', widget.onRefresh,
+            loading: d.loading),
       ],
     );
   }
 
-  Widget _statusChip(BuildContext context, String status) {
+  Widget _statusChip(BuildContext context, DashboardData d) {
     final t = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -146,9 +148,25 @@ class _DashboardPageState extends State<DashboardPage> {
         border: Border.all(color: t.colorScheme.outlineVariant),
         borderRadius: BorderRadius.circular(14),
       ),
-      child: Text(
-        status.isEmpty ? '…' : status,
-        style: TextStyle(fontSize: 12, color: t.colorScheme.onSurfaceVariant),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (d.loading) ...[
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: t.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            d.status.isEmpty ? '…' : d.status,
+            style: TextStyle(fontSize: 12, color: t.colorScheme.onSurfaceVariant),
+          ),
+        ],
       ),
     );
   }
@@ -168,18 +186,40 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _primaryBtn(BuildContext context, String text, VoidCallback onTap) {
+  Widget _primaryBtn(BuildContext context, String text, VoidCallback onTap,
+      {bool loading = false}) {
     final t = Theme.of(context);
     return FilledButton(
-      onPressed: onTap,
+      onPressed: loading ? null : onTap,
       style: FilledButton.styleFrom(
         backgroundColor: t.colorScheme.primary,
         foregroundColor: Colors.white,
+        disabledBackgroundColor:
+            t.colorScheme.primary.withValues(alpha: 0.6),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
       ),
-      child: Text(text,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+      child: loading
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(text,
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.bold)),
+              ],
+            )
+          : Text(text,
+              style: const TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.bold)),
     );
   }
 

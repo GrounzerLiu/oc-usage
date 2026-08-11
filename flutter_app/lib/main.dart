@@ -99,11 +99,26 @@ class _OcUsageAppState extends State<OcUsageApp>
     _workspaceId = wid;
     _client = OpenCodeClient(_session);
     setState(() => _loggedIn = true);
-    _data.value.status = '登录成功，正在获取数据…';
+    _setLoading(true, '登录成功，正在获取用量数据…');
     _refresh();
     _loadHistory();
     _timer?.cancel();
     _timer = Timer.periodic(_refreshInterval, (_) => _refresh());
+  }
+
+  int _loadingCount = 0;
+
+  /// 合并多个并发加载任务的 loading 状态（引用计数）。
+  void _setLoading(bool on, [String? status]) {
+    if (on) {
+      _loadingCount++;
+    } else {
+      _loadingCount = (_loadingCount - 1).clamp(0, 1 << 30);
+    }
+    final d = _data.value;
+    d.loading = _loadingCount > 0;
+    if (status != null) d.status = status;
+    _data.value = d;
   }
 
   // ── 数据 ──
@@ -114,12 +129,12 @@ class _OcUsageAppState extends State<OcUsageApp>
     final wid = _workspaceId;
     if (client == null || wid == null) return;
     _busy = true;
-    _data.value.status = '刷新中…';
+    _setLoading(true, '刷新中…');
     try {
       final go = await client.fetchGo(wid);
       final d = _data.value;
       d.go = go;
-      d.status = '上次刷新 ${_nowText()}';
+      if (!d.loading) d.status = '上次刷新 ${_nowText()}';
       _data.value = d;
       _updateTrayTooltip(go);
     } on ClientError catch (e) {
@@ -132,6 +147,7 @@ class _OcUsageAppState extends State<OcUsageApp>
       _data.value.status = '刷新失败';
     } finally {
       _busy = false;
+      _setLoading(false, _loadingCount == 1 ? '上次刷新 ${_nowText()}' : null);
     }
   }
 
@@ -177,6 +193,7 @@ class _OcUsageAppState extends State<OcUsageApp>
       _data.value = d;
       return;
     }
+    _setLoading(true);
     try {
       final entries = await client.fetchUsageHistory(wid, year, month - 1);
       _db.putHistoryCache(wid, year, month, entries);
@@ -186,6 +203,9 @@ class _OcUsageAppState extends State<OcUsageApp>
       d.status = '历史加载失败：${e.message}';
       _data.value = d;
     } catch (_) {}
+    finally {
+      _setLoading(false, _loadingCount == 1 ? '上次刷新 ${_nowText()}' : null);
+    }
   }
 
   void _onMonthChange(int delta) {
