@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 all_share.png
+build/
+dist/
+installer/
+*.spec.bak
