@@ -2,10 +2,8 @@
 library;
 
 import 'dart:async';
-import 'dart:ffi' show DynamicLibrary, Int32;
+import 'dart:ffi' show DynamicLibrary, Int32, NativeFunction;
 import 'dart:ui';
-
-import 'package:ffi/ffi.dart' show lookupFunction;
 
 import 'package:flutter/material.dart';
 import 'package:tray_manager/tray_manager.dart';
@@ -51,8 +49,9 @@ void main() async {
 int _workAreaHeight() {
   try {
     final user32 = DynamicLibrary.open('user32.dll');
-    final getSystemMetrics = user32.lookupFunction<
-        Int32 Function(Int32), int Function(int)>('GetSystemMetrics');
+    final getSystemMetrics = user32
+        .lookup<NativeFunction<Int32 Function(Int32)>>('GetSystemMetrics')
+        .asFunction<int Function(int)>();
     final h = getSystemMetrics(61);
     return h > 400 ? h : 940;
   } catch (_) {
