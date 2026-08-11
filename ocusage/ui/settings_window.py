@@ -3,12 +3,12 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Property, QEasingCurve, QPropertyAnimation, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
+    QAbstractButton,
     QApplication,
     QButtonGroup,
-    QCheckBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -22,6 +22,70 @@ from .dashboard import ASSETS_DIR, DARK, LIGHT, _build_qss
 
 APP_VERSION = "1.0.0"
 GITHUB_URL = "https://github.com/GrounzerLiu/oc-usage"
+
+
+class _Switch(QAbstractButton):
+    """自绘滑块开关：轨道 + 圆形滑块，切换带平滑动画。"""
+
+    def __init__(self, parent: Optional[QWidget] = None):
+        super().__init__(parent)
+        self.setCheckable(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedSize(46, 24)
+        self._pos = 0.0  # 滑块位置 0..1
+        self._track_off = "#c8d0df"
+        self._track_on = "#4a6cf7"
+        self._thumb = "#ffffff"
+        self._anim = QPropertyAnimation(self, b"offset", self)
+        self._anim.setDuration(140)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.toggled.connect(self._start_anim)
+
+    def offset(self) -> float:
+        return self._pos
+
+    def set_offset(self, value: float) -> None:
+        self._pos = max(0.0, min(1.0, float(value)))
+        self.update()
+
+    offset = Property(float, offset, set_offset)
+
+    def set_colors(self, track_on: str, track_off: str, thumb: str) -> None:
+        self._track_on = track_on
+        self._track_off = track_off
+        self._thumb = thumb
+        self.update()
+
+    def _start_anim(self, checked: bool) -> None:
+        self._anim.stop()
+        self._anim.setStartValue(self._pos)
+        self._anim.setEndValue(1.0 if checked else 0.0)
+        self._anim.start()
+
+    def paintEvent(self, event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w, h = self.width(), self.height()
+        # 轨道
+        track = QRectF(1, (h - 18) / 2, w - 2, 18)
+        on = QColor(self._track_on)
+        off = QColor(self._track_off)
+        c = QColor(
+            round(on.red() * self._pos + off.red() * (1 - self._pos)),
+            round(on.green() * self._pos + off.green() * (1 - self._pos)),
+            round(on.blue() * self._pos + off.blue() * (1 - self._pos)),
+        )
+        p.setPen(QPen(c.darker(115), 1))
+        p.setBrush(c)
+        p.drawRoundedRect(track, 9, 9)
+        # 滑块
+        pad = 3
+        thumb_d = 18
+        x = pad + self._pos * (w - 2 * pad - thumb_d)
+        p.setPen(QPen(QColor(0, 0, 0, 40), 1))
+        p.setBrush(QColor(self._thumb))
+        p.drawEllipse(QRectF(x, (h - thumb_d) / 2, thumb_d, thumb_d))
+        p.end()
 
 
 def _extra_qss(t: dict) -> str:
@@ -52,21 +116,10 @@ QPushButton#themeBtn:checked {{
     border-color: {t['accent_line']};
     color: {t['btn_text']};
 }}
-QCheckBox#switch {{
-    spacing: 12px;
+QLabel#switchLabel {{
     color: {t['text']};
     font-size: 13px;
-}}
-QCheckBox#switch::indicator {{
-    width: 38px;
-    height: 20px;
-    border-radius: 10px;
-    background: {t['bar_bg']};
-    border: 1px solid {t['border']};
-}}
-QCheckBox#switch::indicator:checked {{
-    background: {t['btn']};
-    border-color: {t['btn']};
+    background: transparent;
 }}
 QLabel#aboutTitle {{
     font-size: 16px;
@@ -136,12 +189,14 @@ class SettingsWindow(QWidget):
         general_row = QHBoxLayout(general_card)
         general_row.setContentsMargins(14, 14, 14, 14)
 
-        self._autostart_switch = QCheckBox("开机时自动启动")
-        self._autostart_switch.setObjectName("switch")
-        self._autostart_switch.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._autostart_switch = _Switch()
         self._autostart_switch.setChecked(settings.autostart or autostart_enabled())
         self._autostart_switch.toggled.connect(self._on_autostart_toggled)
         general_row.addWidget(self._autostart_switch)
+        general_row.addSpacing(4)
+        sw_label = QLabel("开机时自动启动")
+        sw_label.setObjectName("switchLabel")
+        general_row.addWidget(sw_label)
         general_row.addStretch(1)
         root.addWidget(general_card)
 
@@ -226,6 +281,7 @@ class SettingsWindow(QWidget):
     def apply_theme(self, dark: bool) -> None:
         t = DARK if dark else LIGHT
         self.setStyleSheet(_build_qss(t) + _extra_qss(t))
+        self._autostart_switch.set_colors(t["btn"], t["bar_bg"], "#ffffff")
 
     def _on_scheme_changed(self, scheme) -> None:
         if self._theme_mode == "system":
