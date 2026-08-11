@@ -8,6 +8,8 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:win32_registry/win32_registry.dart';
+
 import 'logger.dart';
 import 'models.dart';
 import 'webview_session.dart';
@@ -18,6 +20,27 @@ const usagePageSize = 50;
 const _userAgent =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36';
+
+/// 读取 Windows 系统代理（直连 opencode.ai 的响应会被网络栈截断，
+/// 浏览器走系统代理才稳定）。
+String systemProxyString() {
+  try {
+    final key = CURRENT_USER.open(
+      r'Software\Microsoft\Windows\CurrentVersion\Internet Settings',
+      config: const RegistryOpenConfig(access: RegistryAccess.read),
+    );
+    try {
+      final enable = key.getValue('ProxyEnable');
+      final server = key.getValue('ProxyServer');
+      final enabled = enable is DwordValue ? enable.value : 0;
+      final host = server is StringValue ? server.value : '';
+      if (enabled == 1 && host.isNotEmpty) return 'PROXY $host';
+    } finally {
+      key.close();
+    }
+  } catch (_) {}
+  return 'DIRECT';
+}
 
 /// 已知 server function id（2026-08 抓取）；失效时自动重新发现。
 const knownServerIds = {
@@ -45,7 +68,8 @@ class OpenCodeClient {
 
   Future<String> _httpGet(String path) async {
     final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 20);
+      ..connectionTimeout = const Duration(seconds: 8)
+      ..findProxy = (uri) => systemProxyString();
     try {
       final req = await client.getUrl(Uri.parse('$baseUrl$path'));
       req.headers
@@ -60,7 +84,7 @@ class OpenCodeClient {
       final body = await resp
           .transform(utf8.decoder)
           .join()
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 8));
       if (resp.statusCode != 200) {
         throw ClientError('请求失败：HTTP ${resp.statusCode}');
       }
@@ -76,7 +100,8 @@ class OpenCodeClient {
     String? serverId,
   ) async {
     final client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 20);
+      ..connectionTimeout = const Duration(seconds: 8)
+      ..findProxy = (uri) => systemProxyString();
     try {
       final req = await client.postUrl(Uri.parse('$baseUrl$path'));
       req.headers
@@ -93,7 +118,7 @@ class OpenCodeClient {
       final text = await resp
           .transform(utf8.decoder)
           .join()
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 8));
       return (resp.statusCode, text);
     } finally {
       client.close();
@@ -187,6 +212,7 @@ class OpenCodeClient {
     String workspaceId,
     Map<String, dynamic> body,
   ) async {
+    // RPC 走 dart:io HTTP（走系统代理，8 秒超时快失败）
     var serverId = await _resolveServerId(kind, workspaceId);
     if (serverId == null) throw ClientError('无法定位服务函数（前端可能已改版）');
     for (var attempt = 0; attempt < 3; attempt++) {

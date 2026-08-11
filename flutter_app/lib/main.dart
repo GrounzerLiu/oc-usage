@@ -129,10 +129,11 @@ class _OcUsageAppState extends State<OcUsageApp>
       // 捕获最新 cookie 并保存（DPAPI，与 Python 版同路径）—— 登录态自动续期
       _persistCookie(wid);
       setState(() => _loggedIn = true);
-      // 顺序执行：先等 go 页面加载完成，再拉历史（避免 fetch 与页面导航竞态）
-      await _refresh();
-      await _loadHistory();
-      _syncStats(); // 统计缓存 + 模型成本占比
+      // 快照立即展示（DB 缓存），后台并行刷新/历史/统计，互不阻塞
+      _applyStats();
+      _refresh();
+      _loadHistory();
+      _syncStats();
       _timer?.cancel();
       _timer = Timer.periodic(_refreshInterval, (_) => _refresh());
     } finally {
@@ -218,17 +219,16 @@ class _OcUsageAppState extends State<OcUsageApp>
     _busySync = true;
     final t0 = DateTime.now();
     try {
-      final d = _data.value;
+      // 用 DB 判断（而非内存 stats）：库空才全量，否则增量秒级补新
       int added;
-      if (d.stats == null || d.stats!.requests == 0) {
-        // 首次：全量拉取（与 Python 版一致，拉完所有页）
+      if (_db.recordCount() == 0) {
         added = await _db.syncFull(client, wid);
       } else {
         added = await _db.syncIncremental(client, wid);
       }
       _applyStats();
       AppLog.i('统计同步完成（${DateTime.now().difference(t0).inMilliseconds}ms）'
-          ' 新增 $added 条，库内 ${d.stats?.requests} 条');
+          ' 新增 $added 条，库内 ${_db.recordCount()} 条');
     } catch (e, st) {
       AppLog.e('统计同步失败', e, st);
     } finally {

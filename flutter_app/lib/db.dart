@@ -11,6 +11,7 @@ import 'package:sqlite3/open.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'client.dart';
+import 'logger.dart';
 import 'models.dart';
 import 'settings.dart';
 
@@ -130,36 +131,66 @@ class UsageCache {
     return n;
   }
 
-  /// 增量同步：最新一页已缓存即截断，否则逐页找首个已缓存 id。
-  Future<int> syncIncremental(OpenCodeClient client, String workspaceId) async {
+  /// 增量同步：批量并发扫描，找到第一个已缓存 id 即截断停止。
+  Future<int> syncIncremental(
+    OpenCodeClient client,
+    String workspaceId, {
+    int maxPages = 800,
+    int batchSize = 8,
+  }) async {
     final known = knownIds();
     if (known.isEmpty) {
       return syncFull(client, workspaceId);
     }
     final newest = await client.fetchPageRecords(workspaceId, 0);
-    if (newest.isNotEmpty && known.contains(newest.first.id)) {
-      return insertRecords(newest.where((r) => !known.contains(r.id)).toList());
+    if (newest.isNotEmpty) {
+      AppLog.i('增量: 第一页 ${newest.length} 条，首条=${newest.first.id} '
+          '命中=${known.contains(newest.first.id)}，known=${known.length}');
+      if (known.contains(newest.first.id)) {
+        return insertRecords(newest.where((r) => !known.contains(r.id)).toList());
+      }
     }
     var totalNew = 0;
     var page = 0;
-    while (page < 800) {
-      final records = await client.fetchPageRecords(workspaceId, page);
-      if (records.isEmpty) break;
-      var cut = -1;
-      for (var j = 0; j < records.length; j++) {
-        if (known.contains(records[j].id)) {
-          cut = j;
+    while (page < maxPages) {
+      final pages = <int>[];
+      for (var p = page; p < math.min(page + batchSize, maxPages); p++) {
+        pages.add(p);
+      }
+      final futures = pages.map(
+        (p) => client.fetchPageRecords(workspaceId, p).catchError(
+              (_) => <UsageRecord>[],
+            ),
+      );
+      final results = await Future.wait(futures);
+      var done = false;
+      for (var i = 0; i < results.length; i++) {
+        final records = results[i];
+        if (records.isEmpty) {
+          done = true;
+          break;
+        }
+        var cut = -1;
+        for (var j = 0; j < records.length; j++) {
+          if (known.contains(records[j].id)) {
+            cut = j;
+            break;
+          }
+        }
+        if (cut >= 0) {
+          totalNew += insertRecords(records.sublist(0, cut));
+          done = true;
+          break;
+        }
+        totalNew += insertRecords(records);
+        known.addAll(records.map((r) => r.id));
+        if (records.length < 50) {
+          done = true;
           break;
         }
       }
-      if (cut >= 0) {
-        totalNew += insertRecords(records.sublist(0, cut));
-        break;
-      }
-      totalNew += insertRecords(records);
-      known.addAll(records.map((r) => r.id));
-      page += 1;
-      if (records.length < 50) break;
+      if (done) break;
+      page += batchSize;
     }
     return totalNew;
   }
@@ -205,8 +236,11 @@ class UsageCache {
 
   // ── 统计 ──
 
-  MonthStats allStats() {
-    final row = db.select('''
+  int recordCount() {
+    return db.select('SELECT COUNT(*) c FROM records').first['c'] as int;
+  }
+
+  MonthStats allStats() {    final row = db.select('''
       SELECT COUNT(*) c,
              COALESCE(SUM(input_tokens+output_tokens+reasoning_tokens+cache_read_tokens),0) t,
              COUNT(DISTINCT substr(time_local,1,10)) d
