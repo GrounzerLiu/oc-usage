@@ -265,10 +265,12 @@ class _OcUsageAppState extends State<OcUsageApp>
     final month = d.viewMonth; // 1-based
     final cached = _db.getHistoryCache(wid, year, month);
     if (cached != null) {
+      AppLog.i('历史缓存命中 $year-$month（${cached.length} 条）');
       d.history = cached;
       _data.value = DashboardData.from(d);
       return;
     }
+    AppLog.i('历史缓存未命中 $year-$month，拉取中…');
     _setLoading(true, '正在加载 $year 年 $month 月历史…');
     final t0 = DateTime.now();
     try {
