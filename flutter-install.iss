@@ -17,7 +17,7 @@ DefaultGroupName=oc-usage
 DisableProgramGroupPage=yes
 OutputDir=installer
 OutputBaseFilename=oc-usage-flutter-setup-{#MyAppVersion}
-SetupIconFile=..\assets_icon.ico
+SetupIconFile=assets_icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2
 SolidCompression=yes
@@ -34,7 +34,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\flutter_app\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "flutter_app\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\oc-usage"; Filename: "{app}\{#MyAppExeName}"
