@@ -2,7 +2,7 @@
 library;
 
 import 'dart:async';
-import 'dart:ffi';
+import 'dart:ffi' show DynamicLibrary, Int32;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
