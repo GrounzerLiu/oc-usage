@@ -473,26 +473,16 @@ class _OcUsageAppState extends State<OcUsageApp>
   }
 
   ThemeData _buildTheme(Brightness brightness) {
-    final dark = brightness == Brightness.dark;
+    // Material 3 原生配色：fromSeed 完整派生，不做任何手动覆盖
     final scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.lightAccent,
+      seedColor: const Color(0xFF6750A4), // M3 baseline primary
       brightness: brightness,
-      primary: dark ? AppColors.darkAccent : AppColors.lightAccent,
-      secondary: AppColors.lightAccentEnd,
-      surface: dark ? AppColors.darkSurface : AppColors.lightSurface,
-      surfaceContainerLowest: dark ? AppColors.darkBg : AppColors.lightBg,
-      surfaceContainerHighest:
-          dark ? AppColors.darkCardAlt : AppColors.lightCardAlt,
-      outline: dark ? AppColors.darkBorder : AppColors.lightBorder,
-      outlineVariant: dark ? AppColors.darkBorder : AppColors.lightBorder,
-      onSurface: dark ? AppColors.darkText : AppColors.lightText,
-      onSurfaceVariant: dark ? AppColors.darkSub : AppColors.lightSub,
     );
     return ThemeData(
       colorScheme: scheme,
       useMaterial3: true,
       fontFamily: 'Microsoft YaHei UI',
-      scaffoldBackgroundColor: dark ? AppColors.darkBg : AppColors.lightBg,
+      scaffoldBackgroundColor: scheme.surfaceContainerLowest,
       appBarTheme: AppBarTheme(
         backgroundColor: scheme.surface,
         foregroundColor: scheme.onSurface,
@@ -502,7 +492,7 @@ class _OcUsageAppState extends State<OcUsageApp>
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
           color: scheme.surface,
-          border: Border.all(color: scheme.primary),
+          border: Border.all(color: scheme.outlineVariant),
           borderRadius: BorderRadius.circular(6),
         ),
         textStyle: TextStyle(fontSize: 12, color: scheme.onSurface),
