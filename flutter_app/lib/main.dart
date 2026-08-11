@@ -216,7 +216,7 @@ class _OcUsageAppState extends State<OcUsageApp>
       AppLog.e('刷新异常', e, st);
     } finally {
       _busy = false;
-      _setLoading(false, _loadingCount == 1 ? '上次刷新 ${_nowText()}' : null);
+      _setLoading(false, '上次刷新 ${_nowText()}');
     }
   }
 
@@ -287,7 +287,7 @@ class _OcUsageAppState extends State<OcUsageApp>
     } catch (e, st) {
       AppLog.e('历史加载异常', e, st);
     } finally {
-      _setLoading(false, _loadingCount == 1 ? '上次刷新 ${_nowText()}' : null);
+      _setLoading(false, '上次刷新 ${_nowText()}');
     }
   }
 
