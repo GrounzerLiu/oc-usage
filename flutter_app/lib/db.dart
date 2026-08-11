@@ -332,6 +332,20 @@ class UsageCache {
     );
   }
 
+  /// 取任意缓存（无视 TTL）：数据未到时先显示旧数据占位。
+  List<HistoryEntry>? getHistoryCacheAny(String workspaceId, int year, int month) {
+    try {
+      final rows = db.select(
+        'SELECT payload FROM history_cache WHERE workspace=? AND year=? AND month=?',
+        [workspaceId, year, month],
+      );
+      if (rows.isEmpty) return null;
+      return _decodeHistory('${rows.first['payload']}');
+    } catch (_) {
+      return null;
+    }
+  }
+
   List<HistoryEntry> _decodeHistory(String payload) {
     final list = jsonDecode(payload) as List;
     return list

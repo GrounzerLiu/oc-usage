@@ -267,8 +267,16 @@ class _OcUsageAppState extends State<OcUsageApp>
     if (cached != null) {
       AppLog.i('历史缓存命中 $year-$month（${cached.length} 条）');
       d.history = cached;
+      d.status = '上次刷新 ${_nowText()}';
       _data.value = DashboardData.from(d);
       return;
+    }
+    // 有效缓存没有：先显示任意旧缓存占位（本月过期时窗口打开即有数据），
+    // 再后台拉取更新
+    final stale = _db.getHistoryCacheAny(wid, year, month);
+    if (stale != null) {
+      d.history = stale;
+      _data.value = DashboardData.from(d);
     }
     AppLog.i('历史缓存未命中 $year-$month，拉取中…');
     _setLoading(true, '正在加载 $year 年 $month 月历史…');
