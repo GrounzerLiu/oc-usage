@@ -99,7 +99,12 @@ class RingProgress extends StatelessWidget {
       width: size,
       height: size,
       child: CustomPaint(
-        painter: _RingPainter(percent: percent, color: color),
+        painter: _RingPainter(
+          percent: percent,
+          color: color,
+          trackColor:
+              Theme.of(context).colorScheme.surfaceContainerHighest,
+        ),
         child: Center(
           child: Text(
             '${percent.round()}%',
@@ -118,8 +123,13 @@ class RingProgress extends StatelessWidget {
 class _RingPainter extends CustomPainter {
   final double percent;
   final Color color;
+  final Color trackColor;
 
-  _RingPainter({required this.percent, required this.color});
+  _RingPainter({
+    required this.percent,
+    required this.color,
+    required this.trackColor,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -127,7 +137,7 @@ class _RingPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 9
       ..strokeCap = StrokeCap.butt
-      ..color = const Color(0xFFE9EDF7);
+      ..color = trackColor;
     final rect = Rect.fromLTWH(4.5, 4.5, size.width - 9, size.height - 9);
     canvas.drawOval(rect, track);
 

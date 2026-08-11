@@ -153,7 +153,7 @@ class _OcUsageAppState extends State<OcUsageApp>
     final d = _data.value;
     d.loading = _loadingCount > 0;
     if (status != null) d.status = status;
-    _data.value = d;
+    _data.value = DashboardData.from(d);
   }
 
   // ── 数据 ──
@@ -174,7 +174,7 @@ class _OcUsageAppState extends State<OcUsageApp>
       final d = _data.value;
       d.go = go;
       if (!d.loading) d.status = '上次刷新 ${_nowText()}';
-      _data.value = d;
+      _data.value = DashboardData.from(d);
       _updateTrayTooltip(go);
       AppLog.i('刷新完成（${DateTime.now().difference(t0).inMilliseconds}ms）'
           ' subscribed=${go.subscribed} '
@@ -229,7 +229,7 @@ class _OcUsageAppState extends State<OcUsageApp>
     final d = _data.value;
     d.stats = _db.allStats();
     d.modelCosts = _db.allModelCosts();
-    _data.value = d;
+    _data.value = DashboardData.from(d);
   }
 
   Future<void> _loadHistory() async {
@@ -242,7 +242,7 @@ class _OcUsageAppState extends State<OcUsageApp>
     final cached = _db.getHistoryCache(wid, year, month);
     if (cached != null) {
       d.history = cached;
-      _data.value = d;
+      _data.value = DashboardData.from(d);
       return;
     }
     _setLoading(true, '正在加载 $year 年 $month 月历史…');
@@ -251,13 +251,13 @@ class _OcUsageAppState extends State<OcUsageApp>
       final entries = await client.fetchUsageHistory(wid, year, month - 1);
       _db.putHistoryCache(wid, year, month, entries);
       d.history = entries;
-      _data.value = d;
+      _data.value = DashboardData.from(d);
       AppLog.i('历史加载完成 $year-$month（${DateTime.now().difference(t0).inMilliseconds}ms）'
           ' ${entries.length} 条');
     } on ClientError catch (e) {
       d.status = '历史加载失败：${e.message}';
       AppLog.e('历史加载失败: ${e.message}');
-      _data.value = d;
+      _data.value = DashboardData.from(d);
     } catch (e, st) {
       AppLog.e('历史加载异常', e, st);
     } finally {
@@ -279,7 +279,7 @@ class _OcUsageAppState extends State<OcUsageApp>
     d.viewYear = y;
     d.viewMonth = m;
     d.status = '加载 $y 年 $m 月…';
-    _data.value = d;
+    _data.value = DashboardData.from(d);
     _loadHistory();
   }
 

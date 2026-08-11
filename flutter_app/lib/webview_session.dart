@@ -227,15 +227,18 @@ String fetchTextScript(String path, String method,
 }
 
 /// 提取 _$HY.r 中 key 前缀匹配的已 resolve 数据（与 Python 版逻辑一致）。
+///
+/// 防御 _$HY 尚未初始化（页面脚本未执行完）的情况，返回 "{}" 而非抛错。
 String extractSsrScript(List<String> prefixes) {
   final p = jsonEncode(prefixes);
   return '''
     (function () {
+      var root = window._${r'$'}HY || {};
       var out = {};
-      for (var k in _${r'$'}HY.r) {
+      for (var k in (root.r || {})) {
         for (var i = 0; i < $p.length; i++) {
           if (k.indexOf($p[i]) === 0) {
-            var v = _${r'$'}HY.r[k];
+            var v = root.r[k];
             out[k] = (v && v.v !== undefined) ? v.v : (v && v.p && v.p.v);
           }
         }

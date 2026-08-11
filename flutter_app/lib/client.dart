@@ -52,10 +52,18 @@ class OpenCodeClient {
     if (finalUrl != null && finalUrl.contains('/auth/')) {
       throw ClientError('登录已过期，请重新登录');
     }
-    final raw = await session.evalJs(extractSsrScript([
-      'lite.subscription.get',
-      'billing.get',
-    ]));
+    String? raw;
+    // SSR 数据可能延迟就绪：最多重试 5 次（间隔 500ms）
+    for (var attempt = 0; attempt < 5; attempt++) {
+      raw = await session.evalJs(extractSsrScript([
+        'lite.subscription.get',
+        'billing.get',
+      ]));
+      if (raw != null && raw != '{}' && raw != 'null') break;
+      if (attempt < 4) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+    }
     AppLog.i('fetchGo: evalJs 返回 ${raw?.length ?? -1} 字符');
     if (raw == null) throw ClientError('页面没有内联数据（可能未登录或页面结构变化）');
     final Map<String, dynamic> data;

@@ -1,50 +1,53 @@
 import 'dart:ui';
 
-/// 全局主题色（亮/暗两套，风格与 Python 版一致）。
+/// 全局主题色（亮/暗两套）。
+///
+/// 配色方案：Slate 中性背景 + 蓝→紫渐变主色（参考 Tailwind/CoreUI 2026 趋势），
+/// 模型分类色板借鉴 Cloudscape/IBM Carbon 的高区分度 5 色序。
 class AppColors {
   // ── 亮色 ──
-  static const lightBg = Color(0xFFF8F9FD);
+  static const lightBg = Color(0xFFF8FAFC); // slate-50
   static const lightSurface = Color(0xFFFFFFFF);
-  static const lightCardAlt = Color(0xFFF6F8FF);
-  static const lightBorder = Color(0xFFE7EBF4);
-  static const lightText = Color(0xFF1B2233);
-  static const lightSub = Color(0xFF6A7490);
-  static const lightFaint = Color(0xFF9AA3BA);
-  static const lightBarBg = Color(0xFFE9EDF7);
-  static const lightAccent = Color(0xFF4A6CF7);
-  static const lightAccentEnd = Color(0xFF8B5CF6);
+  static const lightCardAlt = Color(0xFFF1F5F9); // slate-100
+  static const lightBorder = Color(0xFFE2E8F0); // slate-200
+  static const lightText = Color(0xFF0F172A); // slate-900
+  static const lightSub = Color(0xFF64748B); // slate-500
+  static const lightFaint = Color(0xFF94A3B8); // slate-400
+  static const lightBarBg = Color(0xFFE2E8F0);
+  static const lightAccent = Color(0xFF2563EB); // blue-600
+  static const lightAccentEnd = Color(0xFF7C3AED); // violet-600
 
   // ── 暗色 ──
-  static const darkBg = Color(0xFF0E1118);
-  static const darkSurface = Color(0xFF161B28);
-  static const darkCardAlt = Color(0xFF1C2233);
-  static const darkBorder = Color(0xFF272E42);
-  static const darkText = Color(0xFFE8ECF6);
-  static const darkSub = Color(0xFF8E97AD);
-  static const darkFaint = Color(0xFF5F6880);
-  static const darkBarBg = Color(0xFF232A3D);
-  static const darkAccent = Color(0xFF6A8CFF);
-  static const darkAccentEnd = Color(0xFF8B5CF6);
+  static const darkBg = Color(0xFF0F172A); // slate-900
+  static const darkSurface = Color(0xFF1E293B); // slate-800
+  static const darkCardAlt = Color(0xFF263348); // slate-700/800 之间
+  static const darkBorder = Color(0xFF334155); // slate-700
+  static const darkText = Color(0xFFF1F5F9); // slate-100
+  static const darkSub = Color(0xFF94A3B8); // slate-400
+  static const darkFaint = Color(0xFF64748B); // slate-500
+  static const darkBarBg = Color(0xFF334155);
+  static const darkAccent = Color(0xFF3B82F6); // blue-500
+  static const darkAccentEnd = Color(0xFF8B5CF6); // violet-500
 
   // ── 用量状态色 ──
-  static const ok = Color(0xFF2ECC71);
-  static const warn = Color(0xFFE67E22);
-  static const danger = Color(0xFFE74C3C);
+  static const ok = Color(0xFF10B981); // emerald-500
+  static const warn = Color(0xFFF59E0B); // amber-500
+  static const danger = Color(0xFFEF4444); // red-500
 
-  // ── 模型色板 ──
+  // ── 模型分类色板（高区分度，亮/暗主题通用） ──
   static const modelColors = <String, Color>{
-    'deepseek-v4-flash': Color(0xFF10B981),
-    'deepseek-v4-pro': Color(0xFF8B5CF6),
-    'gpt-5.6-luna': Color(0xFF3B82F6),
-    'mimo-v2.5': Color(0xFF06B6D4),
+    'deepseek-v4-flash': Color(0xFF10B981), // emerald
+    'deepseek-v4-pro': Color(0xFFF59E0B), // amber
+    'gpt-5.6-luna': Color(0xFF3B82F6), // blue
+    'mimo-v2.5': Color(0xFFEC4899), // pink
   };
   static const fallbackColors = <Color>[
-    Color(0xFFF59E0B),
-    Color(0xFFEC4899),
-    Color(0xFFF97316),
-    Color(0xFF6366F1),
-    Color(0xFF14B8A6),
-    Color(0xFFA3A3A3),
+    Color(0xFF14B8A6), // teal
+    Color(0xFF8B5CF6), // violet
+    Color(0xFFEF4444), // red
+    Color(0xFF06B6D4), // cyan
+    Color(0xFF84CC16), // lime
+    Color(0xFF94A3B8), // slate
   ];
 
   static Color modelColor(String model, int index) =>

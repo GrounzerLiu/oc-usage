@@ -21,6 +21,18 @@ class DashboardData {
   int viewMonth = 0; // 1-based
 
   DashboardData();
+
+  /// 拷贝构造：ValueNotifier 对同一实例赋值不会通知监听者，
+  /// 因此每次更新必须生成新实例。
+  DashboardData.from(DashboardData o)
+      : go = o.go,
+        history = List.of(o.history),
+        stats = o.stats,
+        modelCosts = List.of(o.modelCosts),
+        status = o.status,
+        loading = o.loading,
+        viewYear = o.viewYear,
+        viewMonth = o.viewMonth;
 }
 
 class DashboardPage extends StatefulWidget {
