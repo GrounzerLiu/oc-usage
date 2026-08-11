@@ -52,6 +52,7 @@ class _OcUsageAppState extends State<OcUsageApp>
     with TrayListener, WindowListener {
   final _settings = Settings();
   final _themeMode = ValueNotifier<String>('system');
+  final _navKey = GlobalKey<NavigatorState>();
   final _data = ValueNotifier<DashboardData>(DashboardData());
   late final WebSession _session;
   final _db = UsageCache();
@@ -406,16 +407,18 @@ class _OcUsageAppState extends State<OcUsageApp>
   }
 
   void _showSettings() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => SettingsPage(
-        settings: _settings,
-        themeMode: _themeMode,
-        onAutostartChanged: (v) {
-          try {
-            setAutostart(v);
-          } catch (_) {}
-        },
-      )),
+    _navKey.currentState?.push(
+      MaterialPageRoute(
+        builder: (_) => SettingsPage(
+          settings: _settings,
+          themeMode: _themeMode,
+          onAutostartChanged: (v) {
+            try {
+              setAutostart(v);
+            } catch (_) {}
+          },
+        ),
+      ),
     );
   }
 
@@ -429,6 +432,7 @@ class _OcUsageAppState extends State<OcUsageApp>
         return MaterialApp(
           debugShowCheckedModeBanner: false,
           title: 'OpenCode 用量',
+          navigatorKey: _navKey,
           themeMode: mode == 'dark'
               ? ThemeMode.dark
               : mode == 'light'
