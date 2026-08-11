@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:webview_win_floating/webview_win_floating.dart';
 
+import '../logger.dart';
 import '../webview_session.dart';
 
 class LoginPage extends StatefulWidget {
@@ -29,7 +30,10 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _init() async {
     await widget.session.init();
-    widget.session.controller.loadRequest(Uri.parse('https://opencode.ai/auth/authorize'));
+    AppLog.i('登录页：WebView 会话就绪，加载登录页');
+    widget.session.controller.loadRequest(
+      Uri.parse('https://opencode.ai/auth/authorize'),
+    );
   }
 
   @override

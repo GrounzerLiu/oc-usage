@@ -10,6 +10,8 @@ import 'dart:io';
 
 import 'package:webview_win_floating/webview_win_floating.dart';
 
+import 'logger.dart';
+
 class WebSession {
   final WinWebViewController controller;
   final _loadCompleters = <Completer<String?>>[];
@@ -52,6 +54,7 @@ class WebSession {
         },
       ),
     );
+    AppLog.i('WebView 导航委托已注册');
   }
 
   /// 加载 URL 并等待页面加载完成（返回最终 URL，可检测登录跳转）。
@@ -77,9 +80,20 @@ class WebSession {
   }
 
   /// 同步 JS 求值，返回结果字符串。
+  ///
+  /// WebView2 会把 JS 字符串返回值再 JSON 编码一层（"abc" → "\"abc\""），
+  /// 这里统一剥掉外层的 JSON 引号，返回真实字符串。
   Future<String?> evalJs(String js) async {
     try {
       final r = await controller.runJavaScriptReturningResult(js);
+      if (r is String && r.startsWith('"')) {
+        try {
+          final decoded = jsonDecode(r);
+          if (decoded is String) return decoded;
+        } catch (_) {
+          // 不是 JSON 字符串，原样返回
+        }
+      }
       return r.toString();
     } catch (_) {
       return null;
@@ -184,17 +198,22 @@ String extractSsrScript(List<String> prefixes) {
 }
 
 /// 执行 SolidStart RPC 响应流，返回 self.$R['server-fn:0'][0] 的 JSON。
+///
+/// 响应代码用 `self.$R` 与裸 `$R` 两种方式引用结果容器，因此挂载到
+/// window.$R 并用直接 eval 执行（裸标识符解析到函数作用域的同名变量）。
 String evalServerResponseScript(String text) {
   final escaped = jsonEncode(text);
+  final dollar = r'$';
   return '''
     (function () {
       try {
         var self = window;
-        var _${r'$'}R = window._${r'$'}R || [];
-        window._${r'$'}R = _${r'$'}R;
+        var _R = self.${dollar}R || {};
+        self.${dollar}R = _R;
+        var ${dollar}R = _R;
         var text = $escaped;
-        (0, eval)(text);
-        return JSON.stringify(window._${r'$'}R['server-fn:0'][0]);
+        eval(text);
+        return JSON.stringify(self.${dollar}R['server-fn:0'][0]);
       } catch (e) {
         return 'ERROR: ' + String(e);
       }

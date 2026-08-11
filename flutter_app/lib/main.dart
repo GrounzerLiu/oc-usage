@@ -87,6 +87,7 @@ class _OcUsageAppState extends State<OcUsageApp>
   }
 
   void _onWebUrl(String url) {
+    AppLog.i('URL 变化: $url');
     final wid = _extractWorkspace(url);
     if (wid != null && !_loggedIn) {
       _onLoggedIn(wid);
@@ -325,6 +326,10 @@ class _OcUsageAppState extends State<OcUsageApp>
     AppLog.i('退出');
     _timer?.cancel();
     _db.close();
+    // 先释放 WebView2（正常退出浏览器进程，登录态 cookie 才会落盘）
+    try {
+      await _session.controller.dispose();
+    } catch (_) {}
     AppLog.close();
     await windowManager.destroy();
   }

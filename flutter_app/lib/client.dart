@@ -2,7 +2,9 @@
 library;
 
 import 'dart:convert';
+import 'dart:math' as math;
 
+import 'logger.dart';
 import 'models.dart';
 import 'webview_session.dart';
 
@@ -155,7 +157,15 @@ class OpenCodeClient {
     if (status != 200) {
       throw ClientError('$kind 接口失败：HTTP $status');
     }
-    return session.evalJs(evalServerResponseScript(text));
+    final jsResult = await session.evalJs(evalServerResponseScript(text));
+    if (jsResult != null && jsResult.startsWith('ERROR:')) {
+      AppLog.e(
+        'RPC 响应解析失败 [$kind]: $jsResult\n'
+        '响应前 1200 字符: ${text.substring(0, math.min(1200, text.length))}',
+      );
+      return null;
+    }
+    return jsResult;
   }
 
   // ── server function id 发现 ──
