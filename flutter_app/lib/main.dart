@@ -5,6 +5,8 @@ import 'dart:async';
 import 'dart:ffi' show DynamicLibrary, Int32, NativeFunction;
 import 'dart:ui';
 
+import 'package:ffi/ffi.dart';
+
 import 'package:flutter/material.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
