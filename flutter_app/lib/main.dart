@@ -9,6 +9,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'client.dart';
 import 'db.dart';
+import 'logger.dart';
 import 'models.dart';
 import 'settings.dart';
 import 'theme.dart';
@@ -59,10 +60,13 @@ class _OcUsageAppState extends State<OcUsageApp>
   }
 
   Future<void> _init() async {
+    await AppLog.init();
+    AppLog.i('启动 oc-usage');
     await _settings.load();
     _themeMode.value = _settings.theme;
     await initSqlite();
     await _db.open();
+    AppLog.i('数据库就绪');
 
     // WebView2 持久化用户数据目录（登录态自动保存）
     final dataDir = await webviewDataDir();
@@ -98,6 +102,7 @@ class _OcUsageAppState extends State<OcUsageApp>
     if (wid.isEmpty) return;
     _workspaceId = wid;
     _client = OpenCodeClient(_session);
+    AppLog.i('登录成功 workspace=$wid');
     setState(() => _loggedIn = true);
     _setLoading(true, '登录成功，正在获取用量数据…');
     _refresh();
@@ -129,7 +134,9 @@ class _OcUsageAppState extends State<OcUsageApp>
     final wid = _workspaceId;
     if (client == null || wid == null) return;
     _busy = true;
-    _setLoading(true, '刷新中…');
+    _setLoading(true, '正在刷新用量…');
+    AppLog.i('刷新开始');
+    final t0 = DateTime.now();
     try {
       final go = await client.fetchGo(wid);
       final d = _data.value;
@@ -137,14 +144,21 @@ class _OcUsageAppState extends State<OcUsageApp>
       if (!d.loading) d.status = '上次刷新 ${_nowText()}';
       _data.value = d;
       _updateTrayTooltip(go);
+      AppLog.i('刷新完成（${DateTime.now().difference(t0).inMilliseconds}ms）'
+          ' subscribed=${go.subscribed} '
+          '滚动=${go.rolling?.usagePercent.round()}% '
+          '每周=${go.weekly?.usagePercent.round()}% '
+          '每月=${go.monthly?.usagePercent.round()}%');
     } on ClientError catch (e) {
       _data.value.status = '刷新失败：${e.message}';
+      AppLog.e('刷新失败: ${e.message}');
       if (e.message.contains('登录已过期')) {
         _timer?.cancel();
         setState(() => _loggedIn = false);
       }
-    } catch (_) {
+    } catch (e, st) {
       _data.value.status = '刷新失败';
+      AppLog.e('刷新异常', e, st);
     } finally {
       _busy = false;
       _setLoading(false, _loadingCount == 1 ? '上次刷新 ${_nowText()}' : null);
@@ -157,19 +171,25 @@ class _OcUsageAppState extends State<OcUsageApp>
     final wid = _workspaceId;
     if (client == null || wid == null) return;
     _busySync = true;
+    _setLoading(true, '正在同步请求记录…');
+    final t0 = DateTime.now();
     try {
       final d = _data.value;
+      int added;
       if (d.stats == null || d.stats!.requests == 0) {
         final records = await client.fetchPageRecords(wid, 0);
-        _db.insertRecords(records);
+        added = _db.insertRecords(records);
       } else {
-        await _db.syncIncremental(client, wid);
+        added = await _db.syncIncremental(client, wid);
       }
       _applyStats();
-    } catch (_) {
-      // 网络失败保留快照
+      AppLog.i('统计同步完成（${DateTime.now().difference(t0).inMilliseconds}ms）'
+          ' 新增 $added 条，库内 ${d.stats?.requests} 条');
+    } catch (e, st) {
+      AppLog.e('统计同步失败', e, st);
     } finally {
       _busySync = false;
+      _setLoading(false);
     }
   }
 
@@ -193,17 +213,22 @@ class _OcUsageAppState extends State<OcUsageApp>
       _data.value = d;
       return;
     }
-    _setLoading(true);
+    _setLoading(true, '正在加载 $year 年 $month 月历史…');
+    final t0 = DateTime.now();
     try {
       final entries = await client.fetchUsageHistory(wid, year, month - 1);
       _db.putHistoryCache(wid, year, month, entries);
       d.history = entries;
       _data.value = d;
+      AppLog.i('历史加载完成 $year-$month（${DateTime.now().difference(t0).inMilliseconds}ms）'
+          ' ${entries.length} 条');
     } on ClientError catch (e) {
       d.status = '历史加载失败：${e.message}';
+      AppLog.e('历史加载失败: ${e.message}');
       _data.value = d;
-    } catch (_) {}
-    finally {
+    } catch (e, st) {
+      AppLog.e('历史加载异常', e, st);
+    } finally {
       _setLoading(false, _loadingCount == 1 ? '上次刷新 ${_nowText()}' : null);
     }
   }
@@ -297,8 +322,10 @@ class _OcUsageAppState extends State<OcUsageApp>
   }
 
   Future<void> _quit() async {
+    AppLog.i('退出');
     _timer?.cancel();
     _db.close();
+    AppLog.close();
     await windowManager.destroy();
   }
 
