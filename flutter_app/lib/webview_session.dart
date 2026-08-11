@@ -166,7 +166,10 @@ class WebSession {
       'ok'
     ''';
     final r = await evalJs(script);
-    if (r == null || !r.contains('ok')) return null;
+    if (r == null || !r.contains('ok')) {
+      AppLog.e('evalJsAsync 注入失败: ${script.substring(0, script.length > 300 ? 300 : script.length)}');
+      return null;
+    }
     final deadline = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(deadline)) {
       final out = await evalJs(
@@ -244,6 +247,41 @@ String extractSsrScript(List<String> prefixes) {
         }
       }
       return JSON.stringify(out);
+    })()
+  ''';
+}
+
+/// 纯 HTTP 抓取 /go 页面并解析 SSR 数据（复刻 Python 版 QJSEngine 逻辑）。
+///
+/// 不导航页面（避免同 URL 不重载、hydration 后 _$HY 清空等问题）：
+/// fetch HTML → 提取内联脚本 → eval → 读 _$HY.r。
+String fetchGoSsrScript(String workspaceId) {
+  final ts = DateTime.now().millisecondsSinceEpoch;
+  return '''
+    (async () => {
+      try {
+        const r = await fetch('/workspace/$workspaceId/go?_=$ts');
+        if (!r.ok) return {status: r.status, error: 'http ' + r.status};
+        const html = await r.text();
+        const scripts = [];
+        const re = /<script(?![^>]*\\bsrc=)[^>]*>([\\s\\S]*?)<\\/script>/g;
+        let m;
+        while ((m = re.exec(html)) !== null) { scripts.push(m[1]); }
+        window._${r'$'}HY = { events: [], completed: new WeakSet(), r: {}, fe: function(){} };
+        for (const s of scripts) { try { eval(s); } catch (e) {} }
+        const out = {};
+        for (const k in window._${r'$'}HY.r) {
+          for (const p of ['lite.subscription.get', 'billing.get']) {
+            if (k.indexOf(p) === 0) {
+              const v = window._${r'$'}HY.r[k];
+              out[k] = (v && v.v !== undefined) ? v.v : (v && v.p && v.p.v);
+            }
+          }
+        }
+        return {status: 200, data: out};
+      } catch (e) {
+        return {status: 0, error: String(e)};
+      }
     })()
   ''';
 }

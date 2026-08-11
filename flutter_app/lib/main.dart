@@ -112,7 +112,7 @@ class _OcUsageAppState extends State<OcUsageApp>
     return m?.group(1);
   }
 
-  void _onLoggedIn(String wid) {
+  Future<void> _onLoggedIn(String wid) async {
     if (wid.isEmpty) return;
     _workspaceId = wid;
     _client = OpenCodeClient(_session);
@@ -121,8 +121,9 @@ class _OcUsageAppState extends State<OcUsageApp>
     _persistCookie(wid);
     setState(() => _loggedIn = true);
     _setLoading(true, '登录成功，正在获取用量数据…');
-    _refresh();
-    _loadHistory();
+    // 顺序执行：先等 go 页面加载完成，再拉历史（避免 fetch 与页面导航竞态）
+    await _refresh();
+    await _loadHistory();
     _timer?.cancel();
     _timer = Timer.periodic(_refreshInterval, (_) => _refresh());
   }

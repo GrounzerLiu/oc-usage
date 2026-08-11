@@ -35,44 +35,27 @@ class OpenCodeClient {
   // ── SSR 页面数据 ──
 
   /// 解析 /workspace/{id}/go 页面：Go 三层限额 + billing。
+  ///
+  /// 纯 HTTP 抓取 + 页面内联脚本解析（复刻 Python 版），不导航页面。
   Future<GoData> fetchGo(String workspaceId) async {
-    AppLog.i('fetchGo: 开始加载 /go 页面');
-    String? finalUrl;
-    try {
-      finalUrl = await session
-          .loadAndWait('$baseUrl/workspace/$workspaceId/go')
-          .timeout(
-            const Duration(seconds: 40),
-            onTimeout: () => session.lastUrl,
-          );
-    } catch (e) {
-      AppLog.e('fetchGo: loadAndWait 异常', e);
-    }
-    AppLog.i('fetchGo: 页面最终 URL = $finalUrl');
-    if (finalUrl != null && finalUrl.contains('/auth/')) {
+    AppLog.i('fetchGo: 开始（HTTP 抓取 SSR）');
+    final out = await session.evalJsAsync(
+      fetchGoSsrScript(workspaceId),
+      timeout: const Duration(seconds: 20),
+    );
+    if (out == null) throw ClientError('go 页面抓取失败');
+    final parsed = jsonDecode(out) as Map<String, dynamic>;
+    if (parsed['ok'] != true) throw ClientError('go 页面抓取失败');
+    final value = parsed['value'] as Map<String, dynamic>;
+    final status = value['status'];
+    if (status == 401 || status == 403) {
       throw ClientError('登录已过期，请重新登录');
     }
-    String? raw;
-    // SSR 数据可能延迟就绪：最多重试 5 次（间隔 500ms）
-    for (var attempt = 0; attempt < 5; attempt++) {
-      raw = await session.evalJs(extractSsrScript([
-        'lite.subscription.get',
-        'billing.get',
-      ]));
-      if (raw != null && raw != '{}' && raw != 'null') break;
-      if (attempt < 4) {
-        await Future<void>.delayed(const Duration(milliseconds: 500));
-      }
+    if (status != 200 || value['data'] is! Map<String, dynamic>) {
+      AppLog.e('fetchGo 失败详情: ${out.substring(0, out.length > 400 ? 400 : out.length)}');
+      throw ClientError('go 页面解析失败（前端可能已改版）');
     }
-    AppLog.i('fetchGo: evalJs 返回 ${raw?.length ?? -1} 字符');
-    if (raw == null) throw ClientError('页面没有内联数据（可能未登录或页面结构变化）');
-    final Map<String, dynamic> data;
-    try {
-      data = jsonDecode(raw) as Map<String, dynamic>;
-    } catch (e) {
-      AppLog.e('fetchGo: jsonDecode 失败: ${raw.substring(0, raw.length > 200 ? 200 : raw.length)}', e);
-      throw ClientError('SSR 数据解析失败（前端可能已改版）');
-    }
+    final data = value['data'] as Map<String, dynamic>;
     AppLog.i('fetchGo: 解析成功，keys=${data.keys.take(3).toList()}');
     final sub = _firstMatch(data, 'lite.subscription.get');
     final bill = _firstMatch(data, 'billing.get');
@@ -180,6 +163,14 @@ class OpenCodeClient {
     if (status != 200) {
       throw ClientError('$kind 接口失败：HTTP $status');
     }
+    if (text.trimLeft().startsWith('<')) {
+      // 页面导航竞态：RPC 返回了 HTML 而非 JSON 流，稍后重试一次
+      AppLog.e('RPC 返回 HTML（疑似导航竞态），500ms 后重试');
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      final retry = await _rpcCall(kind, serverId, workspaceId, body);
+      if (retry != null) return retry;
+      throw ClientError('$kind 接口失败：响应异常');
+    }
     final jsResult = await session.evalJs(evalServerResponseScript(text));
     if (jsResult != null && jsResult.startsWith('ERROR:')) {
       AppLog.e(
@@ -207,9 +198,12 @@ class OpenCodeClient {
   }
 
   Future<String?> _discoverServerId(String kind, String workspaceId) async {
-    // 1. 抓 usage 页面取 JS bundle URL
-    await session.loadAndWait('$baseUrl/workspace/$workspaceId/usage');
-    final html = await session.evalJs('document.documentElement.outerHTML') ?? '';
+    // 1. 抓 usage 页面 HTML 取 JS bundle URL（纯 HTTP，不导航）
+    final htmlOut = await session.evalJsAsync(
+      fetchTextScript('/workspace/$workspaceId/usage', 'GET'),
+      timeout: const Duration(seconds: 15),
+    );
+    final html = _rpcText(htmlOut) ?? '';
     final bundles = _bundleJsRe
         .allMatches(html)
         .map((m) => m.group(0)!)
