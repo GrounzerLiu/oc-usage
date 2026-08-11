@@ -364,19 +364,17 @@ class _DashboardPageState extends State<DashboardPage> {
       final map = byDay[days[i]] ?? {};
       final rods = <BarChartRodData>[];
       final modelOrder = <String>[];
-      final groupTotal = map.values.fold(0.0, (a, b) => a + b);
       var acc = 0.0;
       for (final m in models) {
         final v = map[m] ?? 0;
         if (v <= 0) continue;
         final base = AppColors.modelColor(m, models.indexOf(m));
-        final isTop = acc + v >= groupTotal - 0.001;
         rods.add(BarChartRodData(
           fromY: acc,
           toY: acc + v,
           width: 14,
           color: base,
-          // 标准用法：垂直渐变 + 顶部圆角（仅最高段，避免段间空隙）
+          // 标准用法：垂直渐变填充
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -385,9 +383,7 @@ class _DashboardPageState extends State<DashboardPage> {
               base,
             ],
           ),
-          borderRadius: isTop
-              ? const BorderRadius.vertical(top: Radius.circular(4))
-              : BorderRadius.zero,
+          borderRadius: BorderRadius.zero,
         ));
         modelOrder.add(m);
         acc += v;
