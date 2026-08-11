@@ -395,6 +395,7 @@ class _DashboardPageState extends State<DashboardPage> {
       rodsModels.add(modelOrder);
       groups.add(BarChartGroupData(
           x: i,
+          groupVertically: true,
           barRods: rods.isEmpty ? [BarChartRodData(toY: 0)] : rods));
     }
     return BarChart(
