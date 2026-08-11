@@ -148,19 +148,23 @@ class WebSession {
     }
   }
 
-  /// 异步 JS（含 fetch/await）：注入 async IIFE 存 window.__ocR，轮询读取。
+  /// 异步 JS（含 fetch/await）：注入 async IIFE 存 window[唯一key]，轮询读取。
+  ///
+  /// 用唯一 key 而非固定 window.__ocR，避免并发调用/残留值互相干扰
+  /// （此前偶发读到上次调用的结果导致解析错乱）。
   Future<String?> evalJsAsync(
     String asyncBody, {
     Duration timeout = const Duration(seconds: 30),
     Duration poll = const Duration(milliseconds: 120),
   }) async {
-    await evalJs('window.__ocR = undefined;');
+    final key = '__ocR${DateTime.now().microsecondsSinceEpoch}';
+    await evalJs('window["$key"] = undefined;');
     final script = '''
       (async () => {
         try {
-          window.__ocR = { ok: true, value: await (${_sanitizeForAsync(asyncBody)}) };
+          window["$key"] = { ok: true, value: await (${_sanitizeForAsync(asyncBody)}) };
         } catch (e) {
-          window.__ocR = { ok: false, error: String(e) };
+          window["$key"] = { ok: false, error: String(e) };
         }
       })();
       'ok'
@@ -171,9 +175,14 @@ class WebSession {
       return null;
     }
     final deadline = DateTime.now().add(timeout);
+    var polls = 0;
     while (DateTime.now().isBefore(deadline)) {
+      polls++;
+      if (polls % 20 == 0) {
+        AppLog.i('evalJsAsync 轮询中…(${polls * poll.inMilliseconds}ms)');
+      }
       final out = await evalJs(
-        "window.__ocR === undefined ? 'PENDING' : JSON.stringify(window.__ocR)",
+        "window[\"$key\"] === undefined ? 'PENDING' : JSON.stringify(window[\"$key\"])",
       );
       if (out == null) return null;
       if (out == 'PENDING') {
@@ -182,6 +191,7 @@ class WebSession {
       }
       return out;
     }
+    AppLog.e('evalJsAsync 超时');
     return null;
   }
 
@@ -251,39 +261,76 @@ String extractSsrScript(List<String> prefixes) {
   ''';
 }
 
-/// 纯 HTTP 抓取 /go 页面并解析 SSR 数据（复刻 Python 版 QJSEngine 逻辑）。
-///
-/// 不导航页面（避免同 URL 不重载、hydration 后 _$HY 清空等问题）：
-/// fetch HTML → 提取内联脚本 → eval → 读 _$HY.r。
-String fetchGoSsrScript(String workspaceId) {
-  final ts = DateTime.now().millisecondsSinceEpoch;
+/// 在隐藏 iframe 中执行页面 HTML（完全隔离），提取 _$HY.r 限额数据。
+String iframeParseScript(String html) {
+  final escaped = jsonEncode(html);
   return '''
     (async () => {
       try {
-        const r = await fetch('/workspace/$workspaceId/go?_=$ts');
-        if (!r.ok) return {status: r.status, error: 'http ' + r.status};
-        const html = await r.text();
-        const scripts = [];
-        const re = /<script(?![^>]*\\bsrc=)[^>]*>([\\s\\S]*?)<\\/script>/g;
-        let m;
-        while ((m = re.exec(html)) !== null) { scripts.push(m[1]); }
-        window._${r'$'}HY = { events: [], completed: new WeakSet(), r: {}, fe: function(){} };
-        for (const s of scripts) { try { eval(s); } catch (e) {} }
+        const html = $escaped;
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+        const idoc = iframe.contentDocument;
+        idoc.open();
+        idoc.write(html);
+        idoc.close();
+        const win = iframe.contentWindow;
         const out = {};
-        for (const k in window._${r'$'}HY.r) {
+        const hy = win._${r'$'}HY;
+        for (const k in (hy && hy.r) || {}) {
           for (const p of ['lite.subscription.get', 'billing.get']) {
             if (k.indexOf(p) === 0) {
-              const v = window._${r'$'}HY.r[k];
+              const v = hy.r[k];
               out[k] = (v && v.v !== undefined) ? v.v : (v && v.p && v.p.v);
             }
           }
         }
+        iframe.remove();
         return {status: 200, data: out};
       } catch (e) {
         return {status: 0, error: String(e)};
       }
     })()
   ''';
+}
+
+/// 同步执行 SSR 内联脚本并提取 _$HY.r 数据（复刻 Python 版 QJSEngine）。
+///
+/// 保存/恢复页面全局（$R、_$HY），执行后页面状态不受影响；
+/// 同步求值（runJavaScriptReturningResult），毫秒级完成。
+String ssrExtractScript(List<String> inlineScripts) {
+  final parts = inlineScripts.map(jsonEncode).toList();
+  final buf = StringBuffer();
+  buf.write('''
+    (function () {
+      var savedR = window.${r'$'}R, savedHy = window._${r'$'}HY;
+      try {
+        var self = window;
+        var ${r'$'}R = []; window.${r'$'}R = ${r'$'}R;
+        var _${r'$'}HY = { events: [], completed: new WeakSet(), r: {}, fe: function(){} };
+  ''');
+  for (var i = 0; i < parts.length; i++) {
+    buf.write('        try { eval(${parts[i]}); } catch (e) {}\n');
+  }
+  buf.write('''
+        var out = {};
+        for (var k in _${r'$'}HY.r) {
+          for (var i = 0; i < 2; i++) {
+            var p = ['lite.subscription.get', 'billing.get'][i];
+            if (k.indexOf(p) === 0) {
+              var v = _${r'$'}HY.r[k];
+              out[k] = (v && v.v !== undefined) ? v.v : (v && v.p && v.p.v);
+            }
+          }
+        }
+        return JSON.stringify(out);
+      } finally {
+        window.${r'$'}R = savedR; window._${r'$'}HY = savedHy;
+      }
+    })()
+  ''');
+  return buf.toString();
 }
 
 /// 执行 SolidStart RPC 响应流，返回 self.$R['server-fn:0'][0] 的 JSON。

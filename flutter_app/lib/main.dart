@@ -60,6 +60,7 @@ class _OcUsageAppState extends State<OcUsageApp>
   String? _workspaceId;
   Timer? _timer;
   bool _loggedIn = false;
+  bool _loggingIn = false;
   bool _busy = false;
   bool _busySync = false;
   bool _sessionReady = false;
@@ -113,19 +114,30 @@ class _OcUsageAppState extends State<OcUsageApp>
   }
 
   Future<void> _onLoggedIn(String wid) async {
-    if (wid.isEmpty) return;
-    _workspaceId = wid;
-    _client = OpenCodeClient(_session);
-    AppLog.i('登录成功 workspace=$wid');
-    // 捕获最新 cookie 并保存（DPAPI，与 Python 版同路径）—— 登录态自动续期
-    _persistCookie(wid);
-    setState(() => _loggedIn = true);
-    _setLoading(true, '登录成功，正在获取用量数据…');
-    // 顺序执行：先等 go 页面加载完成，再拉历史（避免 fetch 与页面导航竞态）
-    await _refresh();
-    await _loadHistory();
-    _timer?.cancel();
-    _timer = Timer.periodic(_refreshInterval, (_) => _refresh());
+    if (wid.isEmpty || _loggingIn || _loggedIn) return;
+    _loggingIn = true;
+    try {
+      _workspaceId = wid;
+      // cookie 从 CookieStore 读取（登录页已注入/保存）
+      final cred = await CookieStore.load();
+      if (cred == null) {
+        AppLog.e('登录成功但无 cookie');
+        return;
+      }
+      _client = OpenCodeClient(cred['cookie']!, _session);
+      AppLog.i('登录成功 workspace=$wid');
+      // 捕获最新 cookie 并保存（DPAPI，与 Python 版同路径）—— 登录态自动续期
+      _persistCookie(wid);
+      setState(() => _loggedIn = true);
+      // 顺序执行：先等 go 页面加载完成，再拉历史（避免 fetch 与页面导航竞态）
+      await _refresh();
+      await _loadHistory();
+      _syncStats(); // 统计缓存 + 模型成本占比
+      _timer?.cancel();
+      _timer = Timer.periodic(_refreshInterval, (_) => _refresh());
+    } finally {
+      _loggingIn = false;
+    }
   }
 
   Future<void> _persistCookie(String wid) async {
@@ -204,14 +216,13 @@ class _OcUsageAppState extends State<OcUsageApp>
     final wid = _workspaceId;
     if (client == null || wid == null) return;
     _busySync = true;
-    _setLoading(true, '正在同步请求记录…');
     final t0 = DateTime.now();
     try {
       final d = _data.value;
       int added;
       if (d.stats == null || d.stats!.requests == 0) {
-        final records = await client.fetchPageRecords(wid, 0);
-        added = _db.insertRecords(records);
+        // 首次：全量拉取（与 Python 版一致，拉完所有页）
+        added = await _db.syncFull(client, wid);
       } else {
         added = await _db.syncIncremental(client, wid);
       }
@@ -222,7 +233,6 @@ class _OcUsageAppState extends State<OcUsageApp>
       AppLog.e('统计同步失败', e, st);
     } finally {
       _busySync = false;
-      _setLoading(false);
     }
   }
 

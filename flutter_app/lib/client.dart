@@ -1,8 +1,12 @@
-/// opencode.ai 数据获取（走 WebView2 会话，带登录态）。
+/// opencode.ai 数据获取（复刻 Python 版架构）。
+///
+/// - HTTP 请求走 dart:io（快、可并发、不依赖页面状态）
+/// - JS 解析（SSR 提取 / RPC 响应流）在 WebView 中执行
+/// - 登录态 = auth cookie（CookieStore 持久化）
 library;
 
 import 'dart:convert';
-import 'dart:math' as math;
+import 'dart:io';
 
 import 'logger.dart';
 import 'models.dart';
@@ -10,6 +14,10 @@ import 'webview_session.dart';
 
 const baseUrl = 'https://opencode.ai';
 const usagePageSize = 50;
+
+const _userAgent =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+    '(KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36';
 
 /// 已知 server function id（2026-08 抓取）；失效时自动重新发现。
 const knownServerIds = {
@@ -28,38 +36,94 @@ class ClientError implements Exception {
 }
 
 class OpenCodeClient {
-  final WebSession session;
+  final String cookie;
+  final WebSession session; // 仅用于执行 JS 解析
 
-  OpenCodeClient(this.session);
+  OpenCodeClient(this.cookie, this.session);
 
-  // ── SSR 页面数据 ──
+  // ── HTTP（dart:io，不走 WebView） ──
+
+  Future<String> _httpGet(String path) async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 20);
+    try {
+      final req = await client.getUrl(Uri.parse('$baseUrl$path'));
+      req.headers
+        ..set(HttpHeaders.cookieHeader, 'auth=$cookie')
+        ..set(HttpHeaders.userAgentHeader, _userAgent)
+        ..set(HttpHeaders.acceptHeader,
+            'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8');
+      final resp = await req.close();
+      if (resp.statusCode == 401 || resp.statusCode == 403) {
+        throw ClientError('登录已过期，请重新登录');
+      }
+      final body = await resp
+          .transform(utf8.decoder)
+          .join()
+          .timeout(const Duration(seconds: 20));
+      if (resp.statusCode != 200) {
+        throw ClientError('请求失败：HTTP ${resp.statusCode}');
+      }
+      return body;
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<(int, String)> _httpPost(
+    String path,
+    String bodyJson,
+    String? serverId,
+  ) async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 20);
+    try {
+      final req = await client.postUrl(Uri.parse('$baseUrl$path'));
+      req.headers
+        ..set(HttpHeaders.cookieHeader, 'auth=$cookie')
+        ..set(HttpHeaders.userAgentHeader, _userAgent)
+        ..set(HttpHeaders.contentTypeHeader, 'application/json')
+        ..set('X-Server-Instance', 'server-fn:0')
+        ..set(HttpHeaders.refererHeader, '$baseUrl/workspace/x/usage');
+      if (serverId != null) {
+        req.headers.set('X-Server-Id', serverId);
+      }
+      req.write(bodyJson);
+      final resp = await req.close();
+      final text = await resp
+          .transform(utf8.decoder)
+          .join()
+          .timeout(const Duration(seconds: 20));
+      return (resp.statusCode, text);
+    } finally {
+      client.close();
+    }
+  }
+
+  // ── go 页面（HTTP + iframe JS 解析） ──
 
   /// 解析 /workspace/{id}/go 页面：Go 三层限额 + billing。
   ///
-  /// 纯 HTTP 抓取 + 页面内联脚本解析（复刻 Python 版），不导航页面。
+  /// HTTP 抓取 HTML → Dart 正则提取内联脚本 → WebView 同步 eval（复刻
+  /// Python 版 QJSEngine：无 DOM 执行，毫秒级、不污染页面）。
   Future<GoData> fetchGo(String workspaceId) async {
-    AppLog.i('fetchGo: 开始（HTTP 抓取 SSR）');
-    final out = await session.evalJsAsync(
-      fetchGoSsrScript(workspaceId),
-      timeout: const Duration(seconds: 20),
-    );
-    if (out == null) throw ClientError('go 页面抓取失败');
-    final parsed = jsonDecode(out) as Map<String, dynamic>;
-    if (parsed['ok'] != true) throw ClientError('go 页面抓取失败');
-    final value = parsed['value'] as Map<String, dynamic>;
-    final status = value['status'];
-    if (status == 401 || status == 403) {
-      throw ClientError('登录已过期，请重新登录');
+    AppLog.i('fetchGo: HTTP 抓取 SSR');
+    final html = await _httpGet('/workspace/$workspaceId/go');
+    final scripts = _inlineScripts(html);
+    AppLog.i('fetchGo: 内联脚本 ${scripts.length} 个');
+    String? raw;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      raw = await session.evalJs(ssrExtractScript(scripts));
+      if (raw != null && raw != '{}' && !raw.startsWith('ERROR')) break;
+      await Future<void>.delayed(const Duration(milliseconds: 300));
     }
-    if (status != 200 || value['data'] is! Map<String, dynamic>) {
-      AppLog.e('fetchGo 失败详情: ${out.substring(0, out.length > 400 ? 400 : out.length)}');
+    if (raw == null || raw == '{}') {
       throw ClientError('go 页面解析失败（前端可能已改版）');
     }
-    final data = value['data'] as Map<String, dynamic>;
+    final data = jsonDecode(raw) as Map<String, dynamic>;
     AppLog.i('fetchGo: 解析成功，keys=${data.keys.take(3).toList()}');
     final sub = _firstMatch(data, 'lite.subscription.get');
     final bill = _firstMatch(data, 'billing.get');
-    AppLog.i('fetchGo: sub=$sub bill=$bill');
 
     UsageWindow? window(String label, String key) {
       final j = sub is Map<String, dynamic> ? sub[key] : null;
@@ -78,32 +142,21 @@ class OpenCodeClient {
     );
   }
 
-  // ── RPC（历史聚合 / 请求记录分页） ──
+  // ── RPC（HTTP POST + WebView 解析响应流） ──
 
   Future<List<HistoryEntry>> fetchUsageHistory(
     String workspaceId,
     int year,
     int month0, // 0-based（7 = 8 月）
   ) async {
-    final body = {
-      't': {
-        't': 9, 'i': 0, 'l': 4,
-        'a': [
-          {'t': 1, 's': workspaceId},
-          {'t': 0, 's': year},
-          {'t': 0, 's': month0},
-          {'t': 1, 's': '+08:00'},
-        ],
-        'o': 0,
-      },
-      'f': 31,
-      'm': [],
-    };
-    final serverId = await _resolveServerId('history', workspaceId);
-    if (serverId == null) throw ClientError('无法定位服务函数（前端可能已改版）');
-    final result = await _rpcCall('history', serverId, workspaceId, body);
-    if (result == null) throw ClientError('用量历史获取失败');
-    final data = jsonDecode(result);
+    final body = _rpcBody([
+      {'t': 1, 's': workspaceId},
+      {'t': 0, 's': year},
+      {'t': 0, 's': month0},
+      {'t': 1, 's': '+08:00'},
+    ]);
+    final text = await _rpcCall('history', workspaceId, body);
+    final data = jsonDecode(text);
     final usage = data is Map<String, dynamic> ? data['usage'] : null;
     if (usage is! List) return [];
     return usage
@@ -113,127 +166,93 @@ class OpenCodeClient {
   }
 
   Future<List<UsageRecord>> fetchPageRecords(String workspaceId, int page) async {
-    final body = {
-      't': {
-        't': 9, 'i': 0, 'l': 2,
-        'a': [
-          {'t': 1, 's': workspaceId},
-          {'t': 0, 's': page},
-        ],
-        'o': 0,
-      },
-      'f': 31,
-      'm': [],
-    };
-    final serverId = await _resolveServerId('page', workspaceId);
-    if (serverId == null) throw ClientError('无法定位服务函数（前端可能已改版）');
-    final result = await _rpcCall('page', serverId, workspaceId, body);
-    if (result == null) return [];
-    final data = jsonDecode(result);
+    final body = _rpcBody([
+      {'t': 1, 's': workspaceId},
+      {'t': 0, 's': page},
+    ]);
+    final text = await _rpcCall('page', workspaceId, body);
+    final data = jsonDecode(text);
     if (data is! List) return [];
     return data.map(UsageRecord.fromRaw).toList();
   }
 
-  Future<String?> _rpcCall(
+  Map<String, dynamic> _rpcBody(List<Map<String, dynamic>> args) => {
+        't': {'t': 9, 'i': 0, 'l': args.length, 'a': args, 'o': 0},
+        'f': 31,
+        'm': [],
+      };
+
+  Future<String> _rpcCall(
     String kind,
-    String serverId,
     String workspaceId,
     Map<String, dynamic> body,
   ) async {
-    final out = await session.evalJsAsync(
-      fetchTextScript('/_server', 'POST', jsonEncode(body), serverId),
-    );
-    if (out == null) return null;
-    final parsed = jsonDecode(out) as Map<String, dynamic>;
-    if (parsed['ok'] != true) return null;
-    final status = (parsed['value'] as Map<String, dynamic>)['status'];
-    final text = '${(parsed['value'] as Map<String, dynamic>)['text']}';
-    if (status == 401 || status == 403) {
-      throw ClientError('登录已过期，请重新登录');
-    }
-    if (status == 404 || status == 500) {
-      // 前端改版导致 id 失效：重新发现并重试一次
-      final newId = await _discoverServerId(kind, workspaceId);
-      if (newId != null && newId != serverId) {
-        final retry = await _rpcCall(kind, newId, workspaceId, body);
-        if (retry != null) return retry;
+    var serverId = await _resolveServerId(kind, workspaceId);
+    if (serverId == null) throw ClientError('无法定位服务函数（前端可能已改版）');
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final (status, text) = await _httpPost('/_server', jsonEncode(body), serverId);
+      if (status == 401 || status == 403) {
+        throw ClientError('登录已过期，请重新登录');
       }
-      throw ClientError('$kind 接口失败：HTTP $status（前端可能已改版）');
+      if (status == 404 || status == 500) {
+        // 前端改版导致 id 失效：重新发现后重试
+        serverId = await _discoverServerId(kind, workspaceId);
+        if (serverId == null) throw ClientError('$kind 接口失败：HTTP $status（前端可能已改版）');
+        continue;
+      }
+      if (status != 200) {
+        throw ClientError('$kind 接口失败：HTTP $status');
+      }
+      if (text.trimLeft().startsWith('<')) {
+        AppLog.e('RPC 返回 HTML（响应异常），重试');
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        continue;
+      }
+      final jsResult = await session.evalJs(evalServerResponseScript(text));
+      if (jsResult == null || jsResult.startsWith('ERROR:')) {
+        AppLog.e('RPC 响应解析失败 [$kind]: ${jsResult ?? 'null'}');
+        throw ClientError('$kind 接口失败：响应解析错误');
+      }
+      return jsResult;
     }
-    if (status != 200) {
-      throw ClientError('$kind 接口失败：HTTP $status');
-    }
-    if (text.trimLeft().startsWith('<')) {
-      // 页面导航竞态：RPC 返回了 HTML 而非 JSON 流，稍后重试一次
-      AppLog.e('RPC 返回 HTML（疑似导航竞态），500ms 后重试');
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      final retry = await _rpcCall(kind, serverId, workspaceId, body);
-      if (retry != null) return retry;
-      throw ClientError('$kind 接口失败：响应异常');
-    }
-    final jsResult = await session.evalJs(evalServerResponseScript(text));
-    if (jsResult != null && jsResult.startsWith('ERROR:')) {
-      AppLog.e(
-        'RPC 响应解析失败 [$kind]: $jsResult\n'
-        '响应前 1200 字符: ${text.substring(0, math.min(1200, text.length))}',
-      );
-      return null;
-    }
-    return jsResult;
+    throw ClientError('$kind 接口失败：重试耗尽');
   }
 
-  // ── server function id 发现 ──
+  // ── server function id 发现（纯 HTTP + Dart 正则） ──
 
   Future<String?> _resolveServerId(String kind, String workspaceId) async {
-    final cached = await _loadIdCache();
-    final key = '$kind:$workspaceId';
-    if (cached.containsKey(key)) return cached[key];
-    final known = knownServerIds[kind];
-    if (known != null) return known;
-    return _discoverServerId(kind, workspaceId);
-  }
-
-  Future<Map<String, String>> _loadIdCache() async {
-    return {};
+    return knownServerIds[kind];
   }
 
   Future<String?> _discoverServerId(String kind, String workspaceId) async {
-    // 1. 抓 usage 页面 HTML 取 JS bundle URL（纯 HTTP，不导航）
-    final htmlOut = await session.evalJsAsync(
-      fetchTextScript('/workspace/$workspaceId/usage', 'GET'),
-      timeout: const Duration(seconds: 15),
-    );
-    final html = _rpcText(htmlOut) ?? '';
+    AppLog.i('discover: 开始 $kind');
+    // 1. usage 页面取 JS bundle URL
+    final html = await _httpGet('/workspace/$workspaceId/usage');
     final bundles = _bundleJsRe
         .allMatches(html)
         .map((m) => m.group(0)!)
         .toSet()
         .toList();
+    AppLog.i('discover: bundles=${bundles.length}');
 
-    // 2. 下载 bundle 收集 createServerReference id
+    // 2. 下载 bundle，收集 createServerReference id
     final candidates = <String>{};
     for (final b in bundles) {
-      final js = await session.evalJsAsync(fetchTextScript(b, 'GET'));
-      if (js == null) continue;
       try {
-        final parsed = jsonDecode(js) as Map<String, dynamic>;
-        final value = parsed['value'] as Map<String, dynamic>;
-        final text = '${value['text']}';
-        for (final m in _serverRefRe.allMatches(text)) {
+        final js = await _httpGet(b);
+        for (final m in _serverRefRe.allMatches(js)) {
           candidates.add(m.group(1)!);
         }
       } catch (_) {}
     }
+    AppLog.i('discover: candidates=${candidates.length}');
 
-    // 3. 逐个试调：响应结构匹配即为所需 id
+    // 3. 逐个试调
     for (final cid in candidates) {
-      final body = _probeBody(kind, workspaceId);
       try {
-        final out = await session.evalJsAsync(
-          fetchTextScript('/_server', 'POST', jsonEncode(body), cid),
-        );
-        final text = _rpcText(out);
-        if (text == null) continue;
+        final body = _probeBody(kind, workspaceId);
+        final (status, text) = await _httpPost('/_server', jsonEncode(body), cid);
+        if (status != 200) continue;
         if (kind == 'history' && text.contains('usage:') && text.contains('totalCost')) {
           return cid;
         }
@@ -245,47 +264,20 @@ class OpenCodeClient {
     return null;
   }
 
-  String? _rpcText(String? out) {
-    if (out == null) return null;
-    try {
-      final parsed = jsonDecode(out) as Map<String, dynamic>;
-      if (parsed['ok'] != true) return null;
-      return '${(parsed['value'] as Map<String, dynamic>)['text']}';
-    } catch (_) {
-      return null;
-    }
-  }
-
   Map<String, dynamic> _probeBody(String kind, String workspaceId) {
     if (kind == 'history') {
       final now = DateTime.now();
-      return {
-        't': {
-          't': 9, 'i': 0, 'l': 4,
-          'a': [
-            {'t': 1, 's': workspaceId},
-            {'t': 0, 's': now.year},
-            {'t': 0, 's': now.month - 1},
-            {'t': 1, 's': '+08:00'},
-          ],
-          'o': 0,
-        },
-        'f': 31,
-        'm': [],
-      };
+      return _rpcBody([
+        {'t': 1, 's': workspaceId},
+        {'t': 0, 's': now.year},
+        {'t': 0, 's': now.month - 1},
+        {'t': 1, 's': '+08:00'},
+      ]);
     }
-    return {
-      't': {
-        't': 9, 'i': 0, 'l': 2,
-        'a': [
-          {'t': 1, 's': workspaceId},
-          {'t': 0, 's': 0},
-        ],
-        'o': 0,
-      },
-      'f': 31,
-      'm': [],
-    };
+    return _rpcBody([
+      {'t': 1, 's': workspaceId},
+      {'t': 0, 's': 0},
+    ]);
   }
 }
 
@@ -296,7 +288,13 @@ Object? _firstMatch(Map<String, dynamic> data, String prefix) {
   return null;
 }
 
-/// 分页拉取全部请求记录（每页 50 条，连续拼接）。
+/// 提取页面内联 <script>（不带 src 的）。
+List<String> _inlineScripts(String html) {
+  final re = RegExp(r'<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)</script>');
+  return re.allMatches(html).map((m) => m.group(1)!).toList();
+}
+
+/// 分页拉取全部请求记录（每页 50 条，顺序直到不足一页）。
 Future<List<UsageRecord>> fetchAllUsage(
   OpenCodeClient client,
   String workspaceId, {

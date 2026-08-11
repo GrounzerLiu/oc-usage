@@ -4,6 +4,7 @@ library;
 import 'dart:convert';
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:sqlite3/open.dart';
@@ -132,11 +133,13 @@ class UsageCache {
   /// 增量同步：最新一页已缓存即截断，否则逐页找首个已缓存 id。
   Future<int> syncIncremental(OpenCodeClient client, String workspaceId) async {
     final known = knownIds();
+    if (known.isEmpty) {
+      return syncFull(client, workspaceId);
+    }
     final newest = await client.fetchPageRecords(workspaceId, 0);
     if (newest.isNotEmpty && known.contains(newest.first.id)) {
       return insertRecords(newest.where((r) => !known.contains(r.id)).toList());
     }
-    if (known.isEmpty) return 0; // 无历史时全量由入口处理
     var totalNew = 0;
     var page = 0;
     while (page < 800) {
@@ -159,6 +162,45 @@ class UsageCache {
       if (records.length < 50) break;
     }
     return totalNew;
+  }
+
+  /// 全量同步：并发批量拉取所有页（每批 8 页，直到不足一页为止）。
+  Future<int> syncFull(
+    OpenCodeClient client,
+    String workspaceId, {
+    int maxPages = 800,
+    int batchSize = 8,
+  }) async {
+    var total = 0;
+    var page = 0;
+    while (page < maxPages) {
+      final pages = <int>[];
+      for (var p = page; p < math.min(page + batchSize, maxPages); p++) {
+        pages.add(p);
+      }
+      final futures = pages.map(
+        (p) => client.fetchPageRecords(workspaceId, p).catchError(
+              (_) => <UsageRecord>[],
+            ),
+      );
+      final results = await Future.wait(futures);
+      var done = false;
+      for (var i = 0; i < results.length; i++) {
+        final records = results[i];
+        if (records.isEmpty) {
+          done = true;
+          break;
+        }
+        total += insertRecords(records);
+        if (records.length < 50) {
+          done = true;
+          break;
+        }
+      }
+      if (done) break;
+      page += batchSize;
+    }
+    return total;
   }
 
   // ── 统计 ──
