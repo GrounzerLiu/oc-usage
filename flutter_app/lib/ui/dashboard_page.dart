@@ -359,19 +359,35 @@ class _DashboardPageState extends State<DashboardPage> {
     final maxTotal = days
         .map((d) => byDay[d]!.values.fold(0.0, (a, b) => a + b))
         .fold(0.0, math.max);
+    final dark = Theme.of(context).brightness == Brightness.dark;
     for (var i = 0; i < days.length; i++) {
       final map = byDay[days[i]] ?? {};
       final rods = <BarChartRodData>[];
       final modelOrder = <String>[];
+      final groupTotal = map.values.fold(0.0, (a, b) => a + b);
       var acc = 0.0;
       for (final m in models) {
         final v = map[m] ?? 0;
         if (v <= 0) continue;
+        final base = AppColors.modelColor(m, models.indexOf(m));
+        final isTop = acc + v >= groupTotal - 0.001;
         rods.add(BarChartRodData(
           fromY: acc,
           toY: acc + v,
-          width: 10,
-          color: AppColors.modelColor(m, models.indexOf(m)),
+          width: 14,
+          color: base,
+          // 标准用法：垂直渐变 + 顶部圆角（仅最高段，避免段间空隙）
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color.lerp(base, Colors.white, dark ? 0.12 : 0.25)!,
+              base,
+            ],
+          ),
+          borderRadius: isTop
+              ? const BorderRadius.vertical(top: Radius.circular(4))
+              : BorderRadius.zero,
         ));
         modelOrder.add(m);
         acc += v;
@@ -387,6 +403,7 @@ class _DashboardPageState extends State<DashboardPage> {
         maxY: maxTotal * 1.15,
         barGroups: groups,
         alignment: BarChartAlignment.spaceAround,
+        groupsSpace: 8,
         borderData: FlBorderData(show: false),
         gridData: FlGridData(
           show: true,
