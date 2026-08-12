@@ -1,12 +1,12 @@
-; oc-usage 安装脚本（Inno Setup 7）
+; oc-usage Flutter 版安装脚本（Inno Setup 7）
 #define MyAppName "oc-usage"
 #define MyAppVersion "1.0.0"
-#define MyAppExeName "oc-usage.exe"
+#define MyAppExeName "oc_usage.exe"
 #define MyAppPublisher "GrounzerLiu"
 #define MyAppURL "https://github.com/GrounzerLiu/oc-usage"
 
 [Setup]
-AppId={{8F2B6C3A-5D4E-4A9B-9C1D-2E3F4A5B6C7D}
+AppId={{8F2B6C3A-5D4E-4A9B-9C1D-2E3F4A5B6C7E}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -16,9 +16,9 @@ DefaultDirName={autopf}\oc-usage
 DefaultGroupName=oc-usage
 DisableProgramGroupPage=yes
 OutputDir=installer
-OutputBaseFilename=oc-usage-setup-{#MyAppVersion}
+OutputBaseFilename=oc-usage-flutter-setup-{#MyAppVersion}
 SetupIconFile=assets_icon.ico
-UninstallDisplayIcon={app}\oc-usage.exe
+UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -34,7 +34,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "dist\oc-usage\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\oc-usage"; Filename: "{app}\{#MyAppExeName}"

@@ -1,9 +1,15 @@
-.venv/
+# Flutter
+build/
+.dart_tool/
+.idea/
+*.iml
+*.log
+
+# 构建产物（安装器不提交）
+installer/
+dist/
+
+# 杂项
 __pycache__/
 *.pyc
-.pytest_cache/
 all_share.png
-build/
-dist/
-installer/
-*.spec.bak
