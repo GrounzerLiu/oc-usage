@@ -1,6 +1,13 @@
 # oc-usage — OpenCode 用量托盘工具（Flutter）
 
+[![Release](https://img.shields.io/github/v/release/GrounzerLiu/oc-usage)](https://github.com/GrounzerLiu/oc-usage/releases/latest)
+[![License](https://img.shields.io/github/license/GrounzerLiu/oc-usage)](https://github.com/GrounzerLiu/oc-usage)
+
 Windows 系统托盘常驻，查询 **OpenCode Go** 订阅用量（三层限额：5 小时滚动 / 每周 / 每月）与请求级计费明细。
+
+## 下载
+
+最新安装包：https://github.com/GrounzerLiu/oc-usage/releases/latest
 
 ## 原理
 
