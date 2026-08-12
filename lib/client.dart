@@ -164,9 +164,6 @@ class OpenCodeClient {
       rolling: window('滚动', 'rollingUsage'),
       weekly: window('每周', 'weeklyUsage'),
       monthly: window('每月', 'monthlyUsage'),
-      balance: bill is Map<String, dynamic> && bill['balance'] is num
-          ? (bill['balance'] as num).toDouble()
-          : null,
     );
   }
 

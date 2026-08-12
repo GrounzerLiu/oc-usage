@@ -45,14 +45,12 @@ class GoData {
   final UsageWindow? rolling;
   final UsageWindow? weekly;
   final UsageWindow? monthly;
-  final double? balance;
 
   GoData({
     required this.subscribed,
     this.rolling,
     this.weekly,
     this.monthly,
-    this.balance,
   });
 
   List<String> summaryLines() {
@@ -77,7 +75,6 @@ class GoData {
         'rolling': rolling?.toJson(),
         'weekly': weekly?.toJson(),
         'monthly': monthly?.toJson(),
-        'balance': balance,
       };
 
   factory GoData.fromJson(Map<String, dynamic> j) {
@@ -91,7 +88,6 @@ class GoData {
       rolling: w('rolling'),
       weekly: w('weekly'),
       monthly: w('monthly'),
-      balance: (j['balance'] as num?)?.toDouble(),
     );
   }
 }

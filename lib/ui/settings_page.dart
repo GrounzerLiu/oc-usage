@@ -146,7 +146,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   const SizedBox(height: 10),
                   Text(
                     'Windows 托盘常驻，查询 OpenCode Go 订阅用量'
-                    '（滚动 / 每周 / 每月三层限额）与 Zen 请求级计费明细。\n'
+                    '（滚动 / 每周 / 每月三层限额）与请求级计费明细。\n'
                     '数据来自 opencode.ai web console，无官方 API。',
                     style: TextStyle(
                       fontSize: 12,

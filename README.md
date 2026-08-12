@@ -1,6 +1,6 @@
 # oc-usage — OpenCode 用量托盘工具（Flutter）
 
-Windows 系统托盘常驻，查询 **OpenCode Go** 订阅用量（三层限额：5 小时滚动 / 每周 / 每月）与 Zen 请求级计费明细。
+Windows 系统托盘常驻，查询 **OpenCode Go** 订阅用量（三层限额：5 小时滚动 / 每周 / 每月）与请求级计费明细。
 
 ## 原理
 
