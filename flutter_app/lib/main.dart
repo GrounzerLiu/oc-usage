@@ -330,16 +330,21 @@ class _OcUsageAppState extends State<OcUsageApp>
 
   // ── 托盘 ──
 
-  /// 托盘图标绝对路径：打包后位于 exe 同目录 data/flutter_assets/assets/，
-  /// 开发模式位于项目 assets/。相对路径在安装后（CWD 变化）会失效。
+  /// 托盘图标绝对路径：优先 .ico（tray_manager 用 LoadImage 只支持 ico）。
   String _trayIconPath() {
     final exeDir = File(Platform.resolvedExecutable).parent.path;
     final candidates = [
+      // 打包后
+      '$exeDir${Platform.pathSeparator}data'
+          '${Platform.pathSeparator}flutter_assets'
+          '${Platform.pathSeparator}assets${Platform.pathSeparator}opencode.ico',
+      // 开发模式
+      '${Directory.current.path}${Platform.pathSeparator}assets'
+          '${Platform.pathSeparator}opencode.ico',
+      // 兜底 png
       '$exeDir${Platform.pathSeparator}data'
           '${Platform.pathSeparator}flutter_assets'
           '${Platform.pathSeparator}assets${Platform.pathSeparator}opencode.png',
-      '${Directory.current.path}${Platform.pathSeparator}assets'
-          '${Platform.pathSeparator}opencode.png',
     ];
     for (final c in candidates) {
       if (File(c).existsSync()) return c;
