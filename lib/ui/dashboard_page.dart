@@ -143,18 +143,10 @@ class _DashboardPageState extends State<DashboardPage> {
         const SizedBox(width: 10),
         _ghostBtn(context, '全量统计', widget.onFullStats),
         const SizedBox(width: 8),
-        IconButton.filledTonal(
-          onPressed: widget.onSettings,
-          icon: const Icon(Icons.settings, size: 18),
-          tooltip: '设置',
-          style: IconButton.styleFrom(
-            padding: const EdgeInsets.all(8),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-          ),
-        ),
+        _ghostBtn(context, '设置', widget.onSettings, icon: Icons.settings),
         const SizedBox(width: 8),
-        _primaryBtn(context, d.loading ? '刷新中…' : '刷新', widget.onRefresh,
-            loading: d.loading),
+        _ghostBtn(context, d.loading ? '刷新中…' : '刷新', widget.onRefresh,
+            emphasized: true, loading: d.loading),
       ],
     );
   }
@@ -191,55 +183,37 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Widget _ghostBtn(BuildContext context, String text, VoidCallback onTap) {
+  Widget _ghostBtn(
+    BuildContext context,
+    String text,
+    VoidCallback onTap, {
+    IconData? icon,
+    bool emphasized = false,
+    bool loading = false,
+  }) {
     final t = Theme.of(context);
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: t.colorScheme.primary,
-        side: BorderSide(color: t.colorScheme.primary.withValues(alpha: 0.5)),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
-      ),
-      child: Text(text,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-    );
-  }
-
-  Widget _primaryBtn(BuildContext context, String text, VoidCallback onTap,
-      {bool loading = false}) {
-    final t = Theme.of(context);
-    return FilledButton(
+    final fg = emphasized ? t.colorScheme.primary : t.colorScheme.onSurface;
+    return OutlinedButton.icon(
       onPressed: loading ? null : onTap,
-      style: FilledButton.styleFrom(
-        backgroundColor: t.colorScheme.primary,
-        foregroundColor: Colors.white,
-        disabledBackgroundColor:
-            t.colorScheme.primary.withValues(alpha: 0.6),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+      icon: loading
+          ? const SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(icon ?? Icons.refresh, size: 16),
+      label: Text(text,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: fg,
+        side: BorderSide(
+          color: emphasized
+              ? t.colorScheme.primary.withValues(alpha: 0.6)
+              : t.colorScheme.outlineVariant,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
       ),
-      child: loading
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(text,
-                    style: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.bold)),
-              ],
-            )
-          : Text(text,
-              style: const TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.bold)),
     );
   }
 
