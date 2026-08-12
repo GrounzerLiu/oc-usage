@@ -2,8 +2,11 @@
 library;
 
 import 'dart:async';
+import 'dart:ffi' hide Size;
 import 'dart:io';
 import 'dart:ui';
+
+import 'package:ffi/ffi.dart';
 
 import 'package:flutter/material.dart';
 import 'package:tray_manager/tray_manager.dart';
@@ -23,8 +26,63 @@ import 'webview_session.dart';
 
 const _refreshInterval = Duration(minutes: 5);
 
+const _singleInstanceMutex = r'Global\oc_usage_single_instance';
+
+/// 通过命名互斥体检测是否已有实例在运行。
+bool _alreadyRunning() {
+  try {
+    final kernel32 = DynamicLibrary.open('kernel32.dll');
+    final createMutex = kernel32
+        .lookup<NativeFunction<Pointer<Void> Function(
+            Pointer<Void>, Uint32, Pointer<Utf16>)>>('CreateMutexW')
+        .asFunction<Pointer<Void> Function(Pointer<Void>, int, Pointer<Utf16>)>();
+    final getLastError = kernel32
+        .lookup<NativeFunction<Uint32 Function()>>('GetLastError')
+        .asFunction<int Function()>();
+    final namePtr = _singleInstanceMutex.toNativeUtf16();
+    try {
+      final mutex = createMutex(nullptr, 0, namePtr);
+      if (mutex == nullptr) return false;
+      return getLastError() == 183; // ERROR_ALREADY_EXISTS
+    } finally {
+      malloc.free(namePtr);
+    }
+  } catch (_) {
+    return false;
+  }
+}
+
+/// 聚焦已运行的实例窗口（FindWindowW + SetForegroundWindow）。
+void _focusExistingWindow() {
+  try {
+    final user32 = DynamicLibrary.open('user32.dll');
+    final findWindow = user32
+        .lookup<NativeFunction<Pointer<Void> Function(
+            Pointer<Utf16>, Pointer<Utf16>)>>('FindWindowW')
+        .asFunction<Pointer<Void> Function(Pointer<Utf16>, Pointer<Utf16>)>();
+    final setForeground = user32
+        .lookup<NativeFunction<Int32 Function(Pointer<Void>)>>(
+            'SetForegroundWindow')
+        .asFunction<int Function(Pointer<Void>)>();
+    final titlePtr = 'OpenCode 用量'.toNativeUtf16();
+    try {
+      final hwnd = findWindow(nullptr, titlePtr);
+      if (hwnd != nullptr) {
+        setForeground(hwnd);
+      }
+    } finally {
+      malloc.free(titlePtr);
+    }
+  } catch (_) {}
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 单实例：已有实例运行则聚焦其窗口后退出
+  if (_alreadyRunning()) {
+    _focusExistingWindow();
+    exit(0);
+  }
   // 全局错误捕获 → app.log（桌面应用无 console）
   FlutterError.onError = (details) {
     AppLog.e('Flutter 错误: ${details.exception}', details.exception, details.stack);
