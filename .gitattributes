@@ -1,1 +1,13 @@
 * text=auto eol=lf
+
+# 二进制文件（不参与行尾转换）
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.dll binary
+*.exe binary
+*.db binary
+*.bin binary
