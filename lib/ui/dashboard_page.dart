@@ -143,7 +143,15 @@ class _DashboardPageState extends State<DashboardPage> {
         const SizedBox(width: 10),
         _ghostBtn(context, '全量统计', widget.onFullStats),
         const SizedBox(width: 8),
-        _ghostBtn(context, '⚙ 设置', widget.onSettings),
+        IconButton.filledTonal(
+          onPressed: widget.onSettings,
+          icon: const Icon(Icons.settings, size: 18),
+          tooltip: '设置',
+          style: IconButton.styleFrom(
+            padding: const EdgeInsets.all(8),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+          ),
+        ),
         const SizedBox(width: 8),
         _primaryBtn(context, d.loading ? '刷新中…' : '刷新', widget.onRefresh,
             loading: d.loading),
@@ -277,7 +285,7 @@ class _DashboardPageState extends State<DashboardPage> {
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _monthBtn(context, '◀', () => widget.onMonthChange(-1)),
+              _monthBtn(context, Icons.chevron_left, () => widget.onMonthChange(-1)),
               const SizedBox(width: 4),
               SizedBox(
                 width: 90,
@@ -291,7 +299,7 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ),
               const SizedBox(width: 4),
-              _monthBtn(context, '▶', () => widget.onMonthChange(1)),
+              _monthBtn(context, Icons.chevron_right, () => widget.onMonthChange(1)),
             ],
           ),
         ),
@@ -323,18 +331,19 @@ class _DashboardPageState extends State<DashboardPage> {
     return list;
   }
 
-  Widget _monthBtn(BuildContext context, String text, VoidCallback onTap) {
+  Widget _monthBtn(BuildContext context, IconData icon, VoidCallback onTap) {
     final t = Theme.of(context);
-    return OutlinedButton(
+    return IconButton.outlined(
       onPressed: onTap,
-      style: OutlinedButton.styleFrom(
+      icon: Icon(icon, size: 18),
+      tooltip: icon == Icons.chevron_left ? '上一月' : '下一月',
+      style: IconButton.styleFrom(
         foregroundColor: t.colorScheme.onSurface,
         side: BorderSide(color: t.colorScheme.outlineVariant),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        minimumSize: const Size(0, 28),
+        padding: const EdgeInsets.all(4),
+        minimumSize: const Size(28, 28),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
-      child: Text(text, style: const TextStyle(fontSize: 12)),
     );
   }
 
