@@ -197,44 +197,5 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-/// 自绘滑块开关。
-class _Switch extends StatelessWidget {
-  final bool value;
-  final ValueChanged<bool> onChanged;
 
-  const _Switch({required this.value, required this.onChanged});
 
-  @override
-  Widget build(BuildContext context) {
-    final t = Theme.of(context);
-    return GestureDetector(
-      onTap: () => onChanged(!value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        curve: Curves.easeOutCubic,
-        width: 46,
-        height: 24,
-        decoration: BoxDecoration(
-          color: value ? t.colorScheme.primary : t.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: t.colorScheme.outlineVariant),
-        ),
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 140),
-          curve: Curves.easeOutCubic,
-          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            width: 18,
-            height: 18,
-            margin: const EdgeInsets.all(2),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 2)],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

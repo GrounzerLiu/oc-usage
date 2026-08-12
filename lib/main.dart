@@ -18,7 +18,6 @@ import 'db.dart';
 import 'logger.dart';
 import 'models.dart';
 import 'settings.dart';
-import 'theme.dart';
 import 'package:oc_usage/ui/dashboard_page.dart';
 import 'package:oc_usage/ui/login_page.dart';
 import 'package:oc_usage/ui/settings_page.dart';
@@ -126,6 +125,7 @@ class _OcUsageAppState extends State<OcUsageApp>
   bool _busy = false;
   bool _busySync = false;
   bool _sessionReady = false;
+  int _historySeq = 0;
 
   @override
   void initState() {
@@ -325,9 +325,12 @@ class _OcUsageAppState extends State<OcUsageApp>
     final d = _data.value;
     final year = d.viewYear;
     final month = d.viewMonth; // 1-based
+    // 请求序号：快速切换月份时，旧响应不得覆盖新选择的月份
+    final seq = ++_historySeq;
     final cached = _db.getHistoryCache(wid, year, month);
     if (cached != null) {
       AppLog.i('历史缓存命中 $year-$month（${cached.length} 条）');
+      if (seq != _historySeq) return;
       d.history = cached;
       d.status = '上次刷新 ${_nowText()}';
       _data.value = DashboardData.from(d);
@@ -337,8 +340,10 @@ class _OcUsageAppState extends State<OcUsageApp>
     // 再后台拉取更新
     final stale = _db.getHistoryCacheAny(wid, year, month);
     if (stale != null) {
-      d.history = stale;
-      _data.value = DashboardData.from(d);
+      if (seq == _historySeq) {
+        d.history = stale;
+        _data.value = DashboardData.from(d);
+      }
     }
     AppLog.i('历史缓存未命中 $year-$month，拉取中…');
     _setLoading(true, '正在加载 $year 年 $month 月历史…');
@@ -346,11 +351,13 @@ class _OcUsageAppState extends State<OcUsageApp>
     try {
       final entries = await client.fetchUsageHistory(wid, year, month - 1);
       _db.putHistoryCache(wid, year, month, entries);
+      if (seq != _historySeq) return; // 期间已切换到其他月份，丢弃
       d.history = entries;
       _data.value = DashboardData.from(d);
       AppLog.i('历史加载完成 $year-$month（${DateTime.now().difference(t0).inMilliseconds}ms）'
           ' ${entries.length} 条');
     } on ClientError catch (e) {
+      if (seq != _historySeq) return;
       d.status = '历史加载失败：${e.message}';
       AppLog.e('历史加载失败: ${e.message}');
       _data.value = DashboardData.from(d);

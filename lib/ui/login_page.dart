@@ -27,7 +27,6 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  static final _workspaceRe = RegExp(r'/workspace/(wrk_[A-Za-z0-9]+)');
   bool _probed = false;
   bool _showWebView = false; // 探测完成前隐藏 WebView（避免 404 闪现）
 

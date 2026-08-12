@@ -148,7 +148,6 @@ class OpenCodeClient {
     final data = jsonDecode(raw) as Map<String, dynamic>;
     AppLog.i('fetchGo: 解析成功，keys=${data.keys.take(3).toList()}');
     final sub = _firstMatch(data, 'lite.subscription.get');
-    final bill = _firstMatch(data, 'billing.get');
 
     UsageWindow? window(String label, String key) {
       final j = sub is Map<String, dynamic> ? sub[key] : null;
