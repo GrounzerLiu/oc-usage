@@ -2,6 +2,7 @@
 library;
 
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -329,8 +330,30 @@ class _OcUsageAppState extends State<OcUsageApp>
 
   // ── 托盘 ──
 
+  /// 托盘图标绝对路径：打包后位于 exe 同目录 data/flutter_assets/assets/，
+  /// 开发模式位于项目 assets/。相对路径在安装后（CWD 变化）会失效。
+  String _trayIconPath() {
+    final exeDir = File(Platform.resolvedExecutable).parent.path;
+    final candidates = [
+      '$exeDir${Platform.pathSeparator}data'
+          '${Platform.pathSeparator}flutter_assets'
+          '${Platform.pathSeparator}assets${Platform.pathSeparator}opencode.png',
+      '${Directory.current.path}${Platform.pathSeparator}assets'
+          '${Platform.pathSeparator}opencode.png',
+    ];
+    for (final c in candidates) {
+      if (File(c).existsSync()) return c;
+    }
+    return '';
+  }
+
   Future<void> _setupTray() async {
-    await trayManager.setIcon('assets/opencode.png');
+    final iconPath = _trayIconPath();
+    if (iconPath.isNotEmpty) {
+      await trayManager.setIcon(iconPath);
+    } else {
+      AppLog.e('托盘图标资源未找到');
+    }
     await trayManager.setToolTip('OpenCode 用量');
     await trayManager.setContextMenu(
       Menu(
