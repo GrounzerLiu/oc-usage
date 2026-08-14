@@ -123,7 +123,7 @@ class _SettingsPageState extends State<SettingsPage> {
                           const Icon(Icons.insights, size: 40),
                     ),
                   ),
-                  title: const Text('OpenCode 用量 v1.0.0'),
+                  title: const Text('OpenCode 用量 v1.0.2'),
                   subtitle: const Text('GitHub · GrounzerLiu/oc-usage'),
                 ),
                 const Divider(height: 1),

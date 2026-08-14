@@ -1,6 +1,6 @@
 ; oc-usage Flutter 版安装脚本（Inno Setup 7）
 #define MyAppName "oc-usage"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.2"
 #define MyAppExeName "oc_usage.exe"
 #define MyAppPublisher "GrounzerLiu"
 #define MyAppURL "https://github.com/GrounzerLiu/oc-usage"
