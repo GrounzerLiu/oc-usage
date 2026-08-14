@@ -449,12 +449,13 @@ class _OcUsageAppState extends State<OcUsageApp>
     _openWindow();
   }
 
-  /// 打开统计窗口：立即显示缓存快照，后台刷新限额 + 增量同步统计。
+  /// 打开统计窗口：立即显示缓存快照，后台刷新限额 + 增量同步统计 + 当月柱状图。
   void _openWindow() {
     windowManager.show();
     windowManager.focus();
     _refresh();
     _syncStats();
+    _loadHistory();
   }
 
   @override
